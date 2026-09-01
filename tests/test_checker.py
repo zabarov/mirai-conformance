@@ -49,7 +49,8 @@ class CheckerTests(unittest.TestCase):
             shutil.copytree(MIRAI / "mirai", target / "mirai")
             shutil.copy2(MIRAI / "graph.json", target / "graph.json")
             objects = target / "mirai/graph/specs/project.json"
-            objects.write_bytes(objects.read_bytes().replace(b"\n", b"\r\n"))
+            normalized = objects.read_bytes().replace(b"\r\n", b"\n")
+            objects.write_bytes(normalized.replace(b"\n", b"\r\n"))
             result = check_project(target, MIRAI / "schemas")
             self.assertEqual(result["status"], "passed", result)
     def test_canonical_digest_matches_known_value(self) -> None:
