@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "mirai-conformance"
-version = "0.1.0a1"
+version = "0.2.0a1"
 description = "Independent Python conformance checker for Mirai Program and runtime evidence."
 readme = "README.md"
 requires-python = ">=3.12"

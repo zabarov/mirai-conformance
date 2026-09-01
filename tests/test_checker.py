@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import copy
 import os
 import unittest
 from pathlib import Path
@@ -7,12 +8,15 @@ from pathlib import Path
 from mirai_conformance.canonical import digest_value, program_digest
 from mirai_conformance.corpus import compare_results, run_corpus
 from mirai_conformance.expression import evaluate
+from mirai_conformance.runtime import validate_pure_episode, validate_sanitized_evidence
 from mirai_conformance.validator import load_json, validate_program
 
 
 MIRAI = Path(os.environ.get("MIRAI_REPO", Path(__file__).resolve().parents[2] / "mirai-graph")).resolve()
 CORPUS = MIRAI / "conformance/corpus/pure/corpus.json"
 PROGRAM_SCHEMA = MIRAI / "schemas/mirai-program.schema.json"
+PURE_EPISODE_SCHEMA = MIRAI / "schemas/mirai-pure-episode.schema.json"
+SANITIZED_EVIDENCE_SCHEMA = MIRAI / "schemas/mirai-sanitized-evidence.schema.json"
 
 
 class CheckerTests(unittest.TestCase):
@@ -60,6 +64,33 @@ class CheckerTests(unittest.TestCase):
         reference = {**result, "implementation": "typescript_reference"}
         comparison = compare_results(reference, result)
         self.assertEqual(comparison["status"], "match")
+
+    def test_public_pure_episode_is_self_consistent(self) -> None:
+        episode = load_json(MIRAI / "pilots/mirai-2-beta-federation/results/episode.json")
+        schema = load_json(PURE_EPISODE_SCHEMA)
+        program = load_json(MIRAI / "pilots/mirai-2-beta-federation/programs/results/program.mirai.json")
+        self.assertEqual(validate_pure_episode(episode, schema, program), [])
+
+    def test_pure_episode_digest_tampering_is_rejected(self) -> None:
+        episode = load_json(MIRAI / "pilots/mirai-2-beta-ai-employee/results/episode.json")
+        tampered = copy.deepcopy(episode)
+        tampered["outputs"]["verdict"] = "accepted_without_recalculation"
+        errors = validate_pure_episode(tampered, load_json(PURE_EPISODE_SCHEMA))
+        self.assertIn("episode:output_digest_mismatch", errors)
+
+    def test_sanitized_runtime_evidence_is_cross_checked(self) -> None:
+        evidence = load_json(MIRAI / "pilots/mirai-2-beta-larena/results/mirai-evidence.json")
+        self.assertEqual(
+            validate_sanitized_evidence(evidence, load_json(SANITIZED_EVIDENCE_SCHEMA)),
+            [],
+        )
+
+    def test_receipt_summary_mismatch_is_rejected(self) -> None:
+        evidence = load_json(MIRAI / "pilots/mirai-2-beta-larena/results/mirai-evidence.json")
+        tampered = copy.deepcopy(evidence)
+        tampered["episode"]["effect_summaries"][0]["status"] = "compensated"
+        errors = validate_sanitized_evidence(tampered, load_json(SANITIZED_EVIDENCE_SCHEMA))
+        self.assertTrue(any("effect_summary" in item and "status_mismatch" in item for item in errors))
 
 
 if __name__ == "__main__":
