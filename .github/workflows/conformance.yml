@@ -1,42 +1,83 @@
-name: conformance
+name: Conformance
 
 on:
   push:
   pull_request:
   workflow_dispatch:
-    inputs:
-      mirai_ref:
-        description: Mirai Git ref containing the shared corpus
-        required: false
-        default: codex/mirai-2.0
 
 permissions:
   contents: read
 
+env:
+  MIRAI_REFERENCE_REPOSITORY: zabarov/mirai-graph
+  MIRAI_REFERENCE_REVISION: 336ba02ff8854c3f3474672c47a5f0dee1c12b1a
+
 jobs:
-  python-checker:
+  test:
+    name: Python 3.12 / ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
-        python: ["3.12", "3.13"]
+
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/checkout@v4
+      - name: Checkout checker
+        uses: actions/checkout@v4
+
+      - name: Checkout exact Mirai reference
+        uses: actions/checkout@v4
         with:
-          repository: zabarov/mirai
-          ref: ${{ inputs.mirai_ref || 'codex/mirai-2.0' }}
-          path: _upstream/mirai
-      - uses: actions/setup-python@v5
+          repository: ${{ env.MIRAI_REFERENCE_REPOSITORY }}
+          ref: ${{ env.MIRAI_REFERENCE_REVISION }}
+          path: mirai-reference
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
         with:
-          python-version: ${{ matrix.python }}
+          python-version: "3.12"
           cache: pip
-      - run: python -m pip install -e .
-      - run: python -m unittest discover -s tests -v
+
+      - name: Install checker
+        run: python -m pip install .
+
+      - name: Run independent tests
         env:
-          MIRAI_REPO: ${{ github.workspace }}/_upstream/mirai
-      - run: >-
+          MIRAI_REPO: ${{ github.workspace }}/mirai-reference
+          PYTHONDONTWRITEBYTECODE: "1"
+        run: python -m unittest discover -s tests -v
+
+      - name: Run shared corpus from CLI
+        run: >-
           mirai-conformance corpus
-          _upstream/mirai/conformance/corpus/pure/corpus.json
-          --program-schema _upstream/mirai/schemas/mirai-program.schema.json
+          mirai-reference/conformance/corpus/pure/corpus.json
+          --program-schema mirai-reference/schemas/mirai-program.schema.json
+          --output conformance-result.json
+
+      - name: Upload conformance result
+        uses: actions/upload-artifact@v4
+        with:
+          name: conformance-result-${{ matrix.os }}
+          path: conformance-result.json
+
+  package:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout checker
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Build distributions
+        run: |
+          python -m pip install build
+          python -m build
+
+      - name: Upload distributions
+        uses: actions/upload-artifact@v4
+        with:
+          name: python-distributions
+          path: dist/

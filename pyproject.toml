@@ -8,7 +8,7 @@ version = "0.3.0a1"
 description = "Independent Python conformance checker for Mirai Program, runtime evidence and graph-native contracts."
 readme = "README.md"
 requires-python = ">=3.12"
-license = { text = "MIT" }
+license = "MIT"
 authors = [
   { name = "Rim Zabarov", email = "rim@zabarov.com" }
 ]
@@ -18,11 +18,15 @@ dependencies = [
 ]
 classifiers = [
   "Development Status :: 3 - Alpha",
-  "License :: OSI Approved :: MIT License",
   "Programming Language :: Python :: 3",
   "Programming Language :: Python :: 3.12",
   "Topic :: Software Development :: Testing"
 ]
+
+[project.urls]
+Homepage = "https://github.com/zabarov/mirai-conformance"
+Repository = "https://github.com/zabarov/mirai-conformance"
+Issues = "https://github.com/zabarov/mirai-conformance/issues"
 
 [project.scripts]
 mirai-conformance = "mirai_conformance.cli:main"

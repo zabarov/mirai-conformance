@@ -2,6 +2,8 @@
 
 Status: independent checker alpha (`0.3.0a1`)
 
+[![Conformance](https://github.com/zabarov/mirai-conformance/actions/workflows/conformance.yml/badge.svg)](https://github.com/zabarov/mirai-conformance/actions/workflows/conformance.yml)
+
 `mirai-conformance` is an independent Python implementation of the public
 Mirai conformance contracts. It does not import the TypeScript runtime and it
 does not execute external effects.
@@ -93,3 +95,6 @@ internal consistency of the supplied sanitized evidence. It does not prove
 that an arbitrary Mirai program is correct, safe for production, or authorized
 to perform an effect. Capability grants, approval signatures, secret values and
 external world state remain host-local and outside this checker.
+
+Release and clean-room verification steps are defined in the
+[release checklist](docs/release-checklist.md).
