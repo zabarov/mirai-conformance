@@ -20,3 +20,15 @@ two codebases while retaining one canonical corpus.
 
 Future contract batches may add receipt, transition-trace and governed-episode
 validation. They must remain evidence checks, not runtime authorization.
+
+## Graph-Native Contracts
+
+The checker validates Mirai 2.1 artifacts using Python-owned semantic code. It
+recomputes canonical digests, graph snapshot binding, dependency frontiers,
+deterministic path order, successful-path coverage and aggregate activation
+trace digests. It does not import or call the TypeScript resolver or runtime.
+
+Schema conformance is necessary but not sufficient. A schema-valid activation
+plan still fails if its graph digest, dependency graph or deterministic order is
+inconsistent. Runtime evidence never authorizes effects, canonical writes or
+learning updates.

@@ -8,13 +8,14 @@ from pathlib import Path
 from typing import Sequence
 
 from .corpus import compare_results, run_corpus, write_json
+from .graph_native import check_graph_native
 from .runtime import check_episode, check_evidence
 from .validator import load_json
 
 
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="mirai-conformance")
-    parser.add_argument("--version", action="version", version="mirai-conformance 0.2.0a1")
+    parser.add_argument("--version", action="version", version="mirai-conformance 0.3.0a1")
     commands = parser.add_subparsers(dest="command", required=True)
 
     corpus = commands.add_parser("corpus", help="Run a public Mirai conformance corpus")
@@ -37,6 +38,14 @@ def _parser() -> argparse.ArgumentParser:
     evidence.add_argument("evidence")
     evidence.add_argument("--schema")
     evidence.add_argument("--output")
+
+    graph_native = commands.add_parser("graph-native", help="Validate a Mirai 2.1 graph-native artifact")
+    graph_native.add_argument("kind", choices=["source-catalog", "assimilation-proposal", "component-package", "relation-fact", "technology-draft", "activation-plan", "activation-run-result"])
+    graph_native.add_argument("artifact")
+    graph_native.add_argument("--schema", required=True)
+    graph_native.add_argument("--graph-snapshot")
+    graph_native.add_argument("--activation-plan")
+    graph_native.add_argument("--output")
     return parser
 
 
@@ -48,8 +57,16 @@ def main(argv: Sequence[str] | None = None) -> int:
         result = compare_results(load_json(args.reference), load_json(args.candidate))
     elif args.command == "episode":
         result = check_episode(args.episode, args.schema, args.program)
-    else:
+    elif args.command == "evidence":
         result = check_evidence(args.evidence, args.schema)
+    else:
+        result = check_graph_native(
+            args.kind,
+            load_json(args.artifact),
+            load_json(args.schema),
+            graph_snapshot=load_json(args.graph_snapshot) if args.graph_snapshot else None,
+            activation_plan=load_json(args.activation_plan) if args.activation_plan else None,
+        )
     if args.output:
         write_json(Path(args.output), result)
     print(json.dumps(result, ensure_ascii=False, indent=2))

@@ -1,6 +1,6 @@
 # Mirai Conformance
 
-Status: independent checker alpha (`0.2.0a1`)
+Status: independent checker alpha (`0.3.0a1`)
 
 `mirai-conformance` is an independent Python implementation of the public
 Mirai conformance contracts. It does not import the TypeScript runtime and it
@@ -18,6 +18,9 @@ public runtime evidence:
 - pure episode digest, trace and program binding checks;
 - sanitized runtime evidence, receipt sequence and effect-summary consistency;
 - fail-closed canonical-write and learning-update boundaries.
+- Mirai 2.1 source catalog, assimilation proposal, component, relation-fact,
+  technology-draft, activation-plan and activation-run contracts;
+- independent graph snapshot, dependency DAG and aggregate trace digest checks.
 
 ## Install
 
@@ -62,6 +65,21 @@ mirai-conformance evidence \
 
 The example filenames are placeholders. In a Mirai checkout, pass the actual
 public fixture, schema and compiled program paths.
+
+To validate a graph-resolved activation without importing the TypeScript
+runtime:
+
+```bash
+mirai-conformance graph-native activation-plan \
+  activation-plan.json \
+  --schema activation-plan.schema.json \
+  --graph-snapshot graph-snapshot.json
+
+mirai-conformance graph-native activation-run-result \
+  activation-run-result.json \
+  --schema activation-run-result.schema.json \
+  --activation-plan activation-plan.json
+```
 
 ## Boundary
 

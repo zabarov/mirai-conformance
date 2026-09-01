@@ -8,6 +8,7 @@ from pathlib import Path
 from mirai_conformance.canonical import digest_value, program_digest
 from mirai_conformance.corpus import compare_results, run_corpus
 from mirai_conformance.expression import evaluate
+from mirai_conformance.graph_native import check_graph_native
 from mirai_conformance.runtime import validate_pure_episode, validate_sanitized_evidence
 from mirai_conformance.validator import load_json, validate_program
 
@@ -17,6 +18,8 @@ CORPUS = MIRAI / "conformance/corpus/pure/corpus.json"
 PROGRAM_SCHEMA = MIRAI / "schemas/mirai-program.schema.json"
 PURE_EPISODE_SCHEMA = MIRAI / "schemas/mirai-pure-episode.schema.json"
 SANITIZED_EVIDENCE_SCHEMA = MIRAI / "schemas/mirai-sanitized-evidence.schema.json"
+ACTIVATION_PLAN_SCHEMA = MIRAI / "schemas/activation-plan.schema.json"
+ACTIVATION_RUN_SCHEMA = MIRAI / "schemas/activation-run-result.schema.json"
 
 
 class CheckerTests(unittest.TestCase):
@@ -91,6 +94,54 @@ class CheckerTests(unittest.TestCase):
         tampered["episode"]["effect_summaries"][0]["status"] = "compensated"
         errors = validate_sanitized_evidence(tampered, load_json(SANITIZED_EVIDENCE_SCHEMA))
         self.assertTrue(any("effect_summary" in item and "status_mismatch" in item for item in errors))
+
+    def test_graph_native_activation_plan_and_run_pass_independently(self) -> None:
+        pilot = MIRAI / "pilots/mirai-2.1-beta-federation"
+        snapshot = load_json(pilot / "graph-snapshot.json")
+        plan = load_json(pilot / "results/activation-plan.json")
+        run = load_json(pilot / "results/activation-run-result.json")
+        plan_result = check_graph_native(
+            "activation-plan", plan, load_json(ACTIVATION_PLAN_SCHEMA), graph_snapshot=snapshot
+        )
+        run_result = check_graph_native(
+            "activation-run-result", run, load_json(ACTIVATION_RUN_SCHEMA), activation_plan=plan
+        )
+        self.assertEqual(plan_result["status"], "passed", plan_result)
+        self.assertEqual(run_result["status"], "passed", run_result)
+
+    def test_graph_native_trace_tampering_is_rejected(self) -> None:
+        pilot = MIRAI / "pilots/mirai-2.1-beta-federation"
+        plan = load_json(pilot / "results/activation-plan.json")
+        run = load_json(pilot / "results/activation-run-result.json")
+        tampered = copy.deepcopy(run)
+        tampered["path_results"][0]["output_digest"] = f"sha256:{'0' * 64}"
+        result = check_graph_native(
+            "activation-run-result", tampered, load_json(ACTIVATION_RUN_SCHEMA), activation_plan=plan
+        )
+        self.assertEqual(result["status"], "failed")
+        self.assertIn("activation_run:aggregate_trace_digest_mismatch", result["errors"])
+
+    def test_graph_native_component_and_relation_contracts_pass(self) -> None:
+        pilot = MIRAI / "pilots/mirai-2.1-beta-federation"
+        snapshot = load_json(pilot / "graph-snapshot.json")
+        component_result = check_graph_native(
+            "component-package", snapshot["components"], load_json(MIRAI / "schemas/component-package.schema.json")
+        )
+        relation_result = check_graph_native(
+            "relation-fact", snapshot["relation_facts"][0], load_json(MIRAI / "schemas/relation-fact.schema.json")
+        )
+        self.assertEqual(component_result["status"], "passed", component_result)
+        self.assertEqual(relation_result["status"], "passed", relation_result)
+
+    def test_graph_native_ambiguous_dispatch_is_rejected(self) -> None:
+        snapshot = load_json(MIRAI / "pilots/mirai-2.1-beta-federation/graph-snapshot.json")
+        package = copy.deepcopy(snapshot["components"])
+        package["contextual_bindings"].append({**package["contextual_bindings"][0], "id": "binding.duplicate"})
+        result = check_graph_native(
+            "component-package", package, load_json(MIRAI / "schemas/component-package.schema.json")
+        )
+        self.assertEqual(result["status"], "failed")
+        self.assertTrue(any("ambiguous_dispatch" in item for item in result["errors"]))
 
 
 if __name__ == "__main__":
