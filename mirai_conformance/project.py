@@ -13,6 +13,7 @@ from jsonschema import Draft202012Validator
 from .canonical import digest_value
 
 FORBIDDEN = {"approval", "approvals", "approval_receipt", "capability", "capabilities", "capability_grant", "capability_grants", "canonical_write_allowed"}
+PORTABLE_TEXT_EXTENSIONS = {".cjs", ".csv", ".js", ".json", ".jsonl", ".md", ".mjs", ".toml", ".ts", ".txt", ".yaml", ".yml"}
 
 
 def _load_yaml(filename: Path) -> dict[str, Any]:
@@ -53,7 +54,10 @@ def _authority_errors(value: Any, pointer: str = "manifest") -> list[str]:
 
 
 def _file_digest(filename: Path) -> str:
-    return f"sha256:{hashlib.sha256(filename.read_bytes()).hexdigest()}"
+    value = filename.read_bytes()
+    if filename.suffix.lower() in PORTABLE_TEXT_EXTENSIONS:
+        value = value.replace(b"\r\n", b"\n")
+    return f"sha256:{hashlib.sha256(value).hexdigest()}"
 
 
 def _path_digest(root: Path, relative: str, sources: str) -> str:
