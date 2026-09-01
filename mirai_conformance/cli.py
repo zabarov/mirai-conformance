@@ -10,6 +10,7 @@ from typing import Sequence
 from .corpus import compare_results, run_corpus, write_json
 from .graph_native import check_graph_native
 from .runtime import check_episode, check_evidence
+from .project import check_project
 from .validator import load_json
 
 
@@ -46,6 +47,11 @@ def _parser() -> argparse.ArgumentParser:
     graph_native.add_argument("--graph-snapshot")
     graph_native.add_argument("--activation-plan")
     graph_native.add_argument("--output")
+    project = commands.add_parser("project", help="Validate a Mirai 2.1 Project Capsule independently")
+    project.add_argument("root")
+    project.add_argument("--schemas", required=True)
+    project.add_argument("--agent-brief")
+    project.add_argument("--output")
     return parser
 
 
@@ -59,7 +65,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         result = check_episode(args.episode, args.schema, args.program)
     elif args.command == "evidence":
         result = check_evidence(args.evidence, args.schema)
-    else:
+    elif args.command == "graph-native":
         result = check_graph_native(
             args.kind,
             load_json(args.artifact),
@@ -67,6 +73,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             graph_snapshot=load_json(args.graph_snapshot) if args.graph_snapshot else None,
             activation_plan=load_json(args.activation_plan) if args.activation_plan else None,
         )
+    else:
+        result = check_project(args.root, args.schemas, args.agent_brief)
     if args.output:
         write_json(Path(args.output), result)
     print(json.dumps(result, ensure_ascii=False, indent=2))

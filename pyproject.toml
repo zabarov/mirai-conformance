@@ -13,7 +13,8 @@ authors = [
   { name = "Rim Zabarov", email = "rim@zabarov.com" }
 ]
 dependencies = [
-  "jsonschema>=4.23,<5"
+  "jsonschema>=4.23,<5",
+  "PyYAML>=6.0,<7"
 ]
 classifiers = [
   "Development Status :: 3 - Alpha",

@@ -10,6 +10,7 @@ from mirai_conformance.corpus import compare_results, run_corpus
 from mirai_conformance.expression import evaluate
 from mirai_conformance.graph_native import check_graph_native
 from mirai_conformance.runtime import validate_pure_episode, validate_sanitized_evidence
+from mirai_conformance.project import check_project
 from mirai_conformance.validator import load_json, validate_program
 
 
@@ -23,6 +24,22 @@ ACTIVATION_RUN_SCHEMA = MIRAI / "schemas/activation-run-result.schema.json"
 
 
 class CheckerTests(unittest.TestCase):
+    def test_project_capsule_passes_independently(self) -> None:
+        result = check_project(MIRAI, MIRAI / "schemas")
+        self.assertEqual(result["status"], "passed", result)
+
+    def test_project_capsule_start_tampering_is_rejected(self) -> None:
+        import tempfile
+        import shutil
+        with tempfile.TemporaryDirectory() as directory:
+            target = Path(directory) / "project"
+            shutil.copytree(MIRAI / "mirai", target / "mirai")
+            shutil.copy2(MIRAI / "graph.json", target / "graph.json")
+            with (target / "mirai/START.md").open("a", encoding="utf-8") as stream:
+                stream.write("tampered\n")
+            result = check_project(target, MIRAI / "schemas")
+            self.assertEqual(result["status"], "failed")
+            self.assertIn("start:generated_content_mismatch", result["errors"])
     def test_canonical_digest_matches_known_value(self) -> None:
         self.assertEqual(
             digest_value({"b": 2, "a": [True, "x"]}),

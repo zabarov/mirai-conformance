@@ -21,6 +21,7 @@ public runtime evidence:
 - Mirai 2.1 source catalog, assimilation proposal, component, relation-fact,
   technology-draft, activation-plan and activation-run contracts;
 - independent graph snapshot, dependency DAG and aggregate trace digest checks.
+- Mirai 2.1 Project Capsule manifest, lock, START, facade and Agent Brief checks.
 
 ## Install
 
@@ -79,6 +80,10 @@ mirai-conformance graph-native activation-run-result \
   activation-run-result.json \
   --schema activation-run-result.schema.json \
   --activation-plan activation-plan.json
+
+mirai-conformance project ../mirai \
+  --schemas ../mirai/schemas \
+  --agent-brief agent-brief.json
 ```
 
 ## Boundary
