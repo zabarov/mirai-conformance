@@ -17,7 +17,7 @@ from .validator import load_json
 
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="mirai-conformance")
-    parser.add_argument("--version", action="version", version="mirai-conformance 0.4.0a1")
+    parser.add_argument("--version", action="version", version="mirai-conformance 0.4.0a2")
     commands = parser.add_subparsers(dest="command", required=True)
 
     corpus = commands.add_parser("corpus", help="Run a public Mirai conformance corpus")

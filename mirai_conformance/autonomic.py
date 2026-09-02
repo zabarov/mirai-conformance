@@ -3,6 +3,9 @@
 from __future__ import annotations
 
 import fnmatch
+import json
+import re
+from datetime import datetime
 from typing import Any
 
 from jsonschema import Draft202012Validator
@@ -15,6 +18,13 @@ NEVER_AUTOMATIC = {
     "conflict_resolution", "effectful_program", "history_deletion",
     "autonomy_envelope",
 }
+ADAPTIVE_CHANGE_KINDS = {
+    "source_freshness", "derived_navigation", "reviewed_alias",
+    "adaptive_statistic", "effect_free_program",
+}
+RISK_ORDER = {"low": 0, "medium": 1, "high": 2, "critical": 3}
+SAFE_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$")
+SAFE_ADAPTIVE_TARGET = re.compile(r"^adaptive/[A-Za-z0-9._:/-]+$")
 
 
 def _without_digest(document: dict[str, Any]) -> dict[str, Any]:
@@ -34,6 +44,21 @@ def _digest_errors(document: dict[str, Any], label: str) -> list[str]:
 
 def _boundary(document: dict[str, Any], label: str) -> list[str]:
     return [] if document.get("canonical_write_allowed") is False else [f"{label}:canonical_write_must_be_false"]
+
+
+def _safe_adaptive_target(value: Any) -> bool:
+    return isinstance(value, str) and SAFE_ADAPTIVE_TARGET.fullmatch(value) is not None and all(
+        part not in {".", ".."} for part in value.split("/")
+    )
+
+
+def _parse_time(value: Any) -> datetime | None:
+    if not isinstance(value, str):
+        return None
+    try:
+        return datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        return None
 
 
 def validate_source_snapshot(document: dict[str, Any]) -> list[str]:
@@ -88,53 +113,128 @@ def validate_process_candidate(document: dict[str, Any]) -> list[str]:
 
 def validate_autonomy_envelope(document: dict[str, Any]) -> list[str]:
     errors = _boundary(document, "autonomy_envelope") + _digest_errors(document, "autonomy_envelope")
+    if not SAFE_ID.fullmatch(str(document.get("id", ""))) or not str(document.get("scope", "")).strip():
+        errors.append("autonomy_envelope:identity_invalid")
     if any(kind in NEVER_AUTOMATIC for kind in document.get("allowed_change_kinds", [])):
         errors.append("autonomy_envelope:protected_kind_allowed")
+    if any(kind not in ADAPTIVE_CHANGE_KINDS for kind in document.get("allowed_change_kinds", [])):
+        errors.append("autonomy_envelope:unknown_change_kind")
     if not document.get("approver_signatures"):
         errors.append("autonomy_envelope:signature_required")
     if document.get("rollback_contract", {}).get("required") is not True or document.get("rollback_contract", {}).get("verify_readback") is not True:
         errors.append("autonomy_envelope:rollback_required")
     if any(not str(pattern).startswith("adaptive/") for pattern in document.get("resource_patterns", [])):
         errors.append("autonomy_envelope:resource_outside_adaptive_stratum")
+    budget = document.get("change_budget", {})
+    if not isinstance(budget.get("max_changes"), int) or budget.get("max_changes", 0) < 1:
+        errors.append("autonomy_envelope:change_count_budget_invalid")
+    if not isinstance(budget.get("max_payload_bytes"), int) or budget.get("max_payload_bytes", 0) < 1:
+        errors.append("autonomy_envelope:payload_budget_invalid")
+    issued = _parse_time(document.get("issued_at"))
+    expires = _parse_time(document.get("expires_at"))
+    if issued is None or expires is None or issued >= expires:
+        errors.append("autonomy_envelope:lifetime_invalid")
     return errors
 
 
 def validate_evolution_proposal(document: dict[str, Any]) -> list[str]:
     errors = _boundary(document, "evolution_proposal") + _digest_errors(document, "evolution_proposal")
+    if not SAFE_ID.fullmatch(str(document.get("id", ""))) or not str(document.get("scope", "")).strip():
+        errors.append("evolution_proposal:identity_invalid")
+    seen: set[str] = set()
     for change in document.get("changes", []):
+        change_id = str(change.get("id", ""))
+        if not SAFE_ID.fullmatch(change_id) or change_id in seen:
+            errors.append(f"evolution_proposal:change_identity_invalid:{change_id or 'missing'}")
+        seen.add(change_id)
+        if not _safe_adaptive_target(change.get("target_ref")):
+            errors.append(f"evolution_proposal:target_invalid:{change_id}")
         if digest_value(change.get("payload")) != change.get("payload_digest"):
-            errors.append(f"evolution_proposal:payload_digest_mismatch:{change.get('id')}")
+            errors.append(f"evolution_proposal:payload_digest_mismatch:{change_id}")
     return errors
 
 
-def _change_must_not_be_automatic(change: dict[str, Any], envelope: dict[str, Any], proposal: dict[str, Any]) -> bool:
-    if change.get("kind") in NEVER_AUTOMATIC or change.get("stratum") != "adaptive_canonical":
-        return True
-    if change.get("effectful") is True or change.get("conflict_refs") or change.get("reversible") is not True:
-        return True
-    if not str(change.get("target_ref", "")).startswith("adaptive/"):
-        return True
+def _change_decision(change: dict[str, Any], envelope: dict[str, Any], proposal: dict[str, Any]) -> tuple[str, list[str]]:
+    reasons: list[str] = []
+    kind = change.get("kind")
+    target = str(change.get("target_ref", ""))
+    if kind in NEVER_AUTOMATIC:
+        reasons.append("change_kind_never_automatic")
+    if change.get("stratum") != "adaptive_canonical":
+        reasons.append("change_outside_adaptive_stratum")
+    if kind not in envelope.get("allowed_change_kinds", []):
+        reasons.append("change_kind_not_allowed")
+    if change.get("risk") in {"high", "critical"} or RISK_ORDER.get(str(change.get("risk")), 99) > RISK_ORDER.get(str(envelope.get("risk_ceiling")), -1):
+        reasons.append("risk_ceiling_exceeded")
+    confidence = change.get("confidence")
+    if not isinstance(confidence, (int, float)) or confidence < envelope.get("confidence_floor", 1):
+        reasons.append("confidence_below_floor")
+    if change.get("reversible") is not True:
+        reasons.append("change_not_reversible")
+    if change.get("effectful") is True:
+        reasons.append("effectful_change_requires_approval")
+    if change.get("conflict_refs"):
+        reasons.append("conflict_resolution_requires_review")
     if proposal.get("scope") != envelope.get("scope"):
-        return True
-    if any(fnmatch.fnmatchcase(str(change.get("target_ref")), pattern) for pattern in envelope.get("forbidden_targets", [])):
-        return True
-    return False
+        reasons.append("autonomy_scope_mismatch")
+    if not _safe_adaptive_target(target) or not any(fnmatch.fnmatchcase(target, pattern) for pattern in envelope.get("resource_patterns", [])):
+        reasons.append("resource_outside_envelope")
+    if any(fnmatch.fnmatchcase(target, pattern) for pattern in envelope.get("forbidden_targets", [])):
+        reasons.append("target_explicitly_forbidden")
+    if not _safe_adaptive_target(target):
+        reasons.append("adaptive_target_prefix_required")
+    for evidence in envelope.get("evidence_requirements", []):
+        if evidence not in change.get("evidence_refs", []):
+            reasons.append(f"required_evidence_missing:{evidence}")
+    replay = envelope.get("replay_requirements", {})
+    if kind in replay.get("required_for", []) and len(change.get("successful_replay_refs", [])) < replay.get("minimum_successful_replays", 0):
+        reasons.append("successful_replay_requirement_missing")
+    deny_markers = ("never_automatic", "outside_adaptive", "effectful", "conflict", "explicitly_forbidden", "target_prefix")
+    verdict = "allow_automatic" if not reasons else "deny" if any(marker in reason for reason in reasons for marker in deny_markers) else "manual_review"
+    return verdict, sorted(set(reasons))
 
 
 def validate_evolution_decision(document: dict[str, Any], proposal: dict[str, Any] | None, envelope: dict[str, Any] | None) -> list[str]:
     errors = _boundary(document, "evolution_decision") + _digest_errors(document, "evolution_decision")
     if proposal is None or envelope is None:
         return errors + ["evolution_decision:proposal_and_envelope_required"]
+    errors.extend(validate_evolution_proposal(proposal))
+    errors.extend(validate_autonomy_envelope(envelope))
+    if document.get("proposal_id") != proposal.get("id") or document.get("envelope_id") != envelope.get("id"):
+        errors.append("evolution_decision:identity_binding_mismatch")
     if document.get("proposal_digest") != proposal.get("digest") or document.get("envelope_digest") != envelope.get("digest"):
         errors.append("evolution_decision:binding_mismatch")
-    decisions = {item.get("change_id"): item for item in document.get("change_decisions", [])}
+    evaluated = _parse_time(document.get("evaluated_at"))
+    issued = _parse_time(envelope.get("issued_at"))
+    expires = _parse_time(envelope.get("expires_at"))
+    if evaluated is None or issued is None or expires is None or evaluated < issued or evaluated >= expires:
+        errors.append("evolution_decision:envelope_not_active")
+    decision_items = document.get("change_decisions", [])
+    decisions = {item.get("change_id"): item for item in decision_items}
+    if len(decisions) != len(decision_items):
+        errors.append("evolution_decision:duplicate_change_decision")
+    proposal_ids = {item.get("id") for item in proposal.get("changes", [])}
+    if set(decisions) - proposal_ids:
+        errors.append("evolution_decision:unknown_change_decision")
+    budget = envelope.get("change_budget", {})
+    payload_bytes = len(json.dumps([item.get("payload") for item in proposal.get("changes", [])], ensure_ascii=False, separators=(",", ":")).encode("utf-8"))
+    budget_exceeded = len(proposal.get("changes", [])) > budget.get("max_changes", 0) or payload_bytes > budget.get("max_payload_bytes", 0)
     for change in proposal.get("changes", []):
         decision = decisions.get(change.get("id"))
         if decision is None:
             errors.append(f"evolution_decision:change_missing:{change.get('id')}")
-        elif _change_must_not_be_automatic(change, envelope, proposal) and decision.get("verdict") == "allow_automatic":
-            errors.append(f"evolution_decision:unsafe_automatic_verdict:{change.get('id')}")
-    if any(item.get("verdict") == "deny" for item in decisions.values()) and document.get("verdict") != "denied":
+            continue
+        expected_verdict, expected_reasons = _change_decision(change, envelope, proposal)
+        if budget_exceeded:
+            expected_verdict = "deny"
+            expected_reasons = sorted(set(expected_reasons + [
+                "change_count_budget_exceeded" if len(proposal.get("changes", [])) > budget.get("max_changes", 0) else "",
+                "change_payload_budget_exceeded" if payload_bytes > budget.get("max_payload_bytes", 0) else "",
+            ]) - {""})
+        if decision.get("verdict") != expected_verdict or sorted(set(decision.get("reason_codes", []))) != expected_reasons:
+            errors.append(f"evolution_decision:decision_mismatch:{change.get('id')}")
+    expected_global = "denied" if budget_exceeded or any(item.get("verdict") == "deny" for item in decisions.values()) else "manual_review_required" if any(item.get("verdict") == "manual_review" for item in decisions.values()) else "automatic_promotion_allowed"
+    if document.get("verdict") != expected_global:
         errors.append("evolution_decision:aggregate_verdict_mismatch")
     return errors
 

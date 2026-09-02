@@ -70,7 +70,48 @@ class CheckerTests(unittest.TestCase):
             proposal=unsafe, envelope=envelope,
         )
         self.assertEqual(result["status"], "failed")
-        self.assertTrue(any("unsafe_automatic_verdict" in item for item in result["errors"]))
+        self.assertTrue(any("decision_mismatch" in item for item in result["errors"]))
+
+    def test_autonomic_decision_rejects_budget_and_identity_bypasses(self) -> None:
+        proposal = load_json(AUTONOMIC / "evolution-proposal.json")
+        envelope = load_json(AUTONOMIC / "autonomy-envelope.json")
+        decision = load_json(AUTONOMIC / "evolution-decision.json")
+        payload = {"relation_ref": "relation.budget"}
+        change = {
+            "id": "change.budget", "kind": "derived_navigation",
+            "target_ref": "adaptive/navigation/budget", "stratum": "adaptive_canonical",
+            "operation": "upsert", "payload": payload, "payload_digest": digest_value(payload),
+            "risk": "low", "confidence": 1, "reversible": True, "effectful": False,
+            "evidence_refs": ["evidence:fixture"], "successful_replay_refs": [], "conflict_refs": [],
+        }
+        oversized = copy.deepcopy(proposal)
+        oversized["changes"] = [change]
+        oversized["digest"] = digest_value({key: value for key, value in oversized.items() if key != "digest"})
+        tiny = copy.deepcopy(envelope)
+        tiny["change_budget"] = {"max_changes": 1, "max_payload_bytes": 1}
+        tiny["digest"] = digest_value({key: value for key, value in tiny.items() if key != "digest"})
+        forged = copy.deepcopy(decision)
+        forged["proposal_id"] = oversized["id"]
+        forged["proposal_digest"] = oversized["digest"]
+        forged["envelope_id"] = tiny["id"]
+        forged["envelope_digest"] = tiny["digest"]
+        forged["change_decisions"] = [{"change_id": "change.budget", "verdict": "allow_automatic", "reason_codes": []}]
+        forged["verdict"] = "automatic_promotion_allowed"
+        forged["digest"] = digest_value({key: value for key, value in forged.items() if key != "digest"})
+        result = check_autonomic(
+            "evolution-decision", forged, load_json(MIRAI / "schemas/evolution-decision.schema.json"),
+            proposal=oversized, envelope=tiny,
+        )
+        self.assertEqual(result["status"], "failed")
+        self.assertTrue(any("decision_mismatch" in item or "aggregate_verdict_mismatch" in item for item in result["errors"]))
+
+        unsafe_id = copy.deepcopy(oversized)
+        unsafe_id["id"] = "../../../outside"
+        unsafe_id["digest"] = digest_value({key: value for key, value in unsafe_id.items() if key != "digest"})
+        invalid = check_autonomic(
+            "evolution-proposal", unsafe_id, load_json(MIRAI / "schemas/evolution-proposal.schema.json")
+        )
+        self.assertEqual(invalid["status"], "failed")
     def test_project_capsule_passes_independently(self) -> None:
         result = check_project(MIRAI, MIRAI / "schemas")
         self.assertEqual(result["status"], "passed", result)
