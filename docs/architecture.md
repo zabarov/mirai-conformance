@@ -32,3 +32,15 @@ Schema conformance is necessary but not sufficient. A schema-valid activation
 plan still fails if its graph digest, dependency graph or deterministic order is
 inconsistent. Runtime evidence never authorizes effects, canonical writes or
 learning updates.
+
+## Autonomic Fabric Contracts
+
+Mirai 2.2 checks remain evidence-only. The Python implementation recomputes
+digests, preserves the intended/observed process distinction and rejects a
+decision that marks a protected, authority, capability, conflicting or
+effectful change as automatically promotable.
+
+Host-local HMAC verification is intentionally not reproduced by the public
+checker because the signing key is not portable evidence. The checker validates
+receipt structure and bindings; the Mirai host verifies the secret-bound
+signature before any adaptive-state mutation.

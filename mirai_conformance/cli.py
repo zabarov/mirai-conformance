@@ -11,12 +11,13 @@ from .corpus import compare_results, run_corpus, write_json
 from .graph_native import check_graph_native
 from .runtime import check_episode, check_evidence
 from .project import check_project
+from .autonomic import check_autonomic
 from .validator import load_json
 
 
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="mirai-conformance")
-    parser.add_argument("--version", action="version", version="mirai-conformance 0.3.0a1")
+    parser.add_argument("--version", action="version", version="mirai-conformance 0.4.0a1")
     commands = parser.add_subparsers(dest="command", required=True)
 
     corpus = commands.add_parser("corpus", help="Run a public Mirai conformance corpus")
@@ -52,6 +53,13 @@ def _parser() -> argparse.ArgumentParser:
     project.add_argument("--schemas", required=True)
     project.add_argument("--agent-brief")
     project.add_argument("--output")
+    autonomic = commands.add_parser("autonomic", help="Validate a Mirai 2.2 Autonomic Fabric artifact")
+    autonomic.add_argument("kind", choices=["source-snapshot", "normalized-unit", "knowledge-proposal", "process-observation", "process-candidate", "autonomy-envelope", "evolution-proposal", "evolution-decision", "promotion-receipt", "autonomic-cycle"])
+    autonomic.add_argument("artifact")
+    autonomic.add_argument("--schema", required=True)
+    autonomic.add_argument("--proposal")
+    autonomic.add_argument("--envelope")
+    autonomic.add_argument("--output")
     return parser
 
 
@@ -73,8 +81,16 @@ def main(argv: Sequence[str] | None = None) -> int:
             graph_snapshot=load_json(args.graph_snapshot) if args.graph_snapshot else None,
             activation_plan=load_json(args.activation_plan) if args.activation_plan else None,
         )
-    else:
+    elif args.command == "project":
         result = check_project(args.root, args.schemas, args.agent_brief)
+    else:
+        result = check_autonomic(
+            args.kind,
+            load_json(args.artifact),
+            load_json(args.schema),
+            proposal=load_json(args.proposal) if args.proposal else None,
+            envelope=load_json(args.envelope) if args.envelope else None,
+        )
     if args.output:
         write_json(Path(args.output), result)
     print(json.dumps(result, ensure_ascii=False, indent=2))

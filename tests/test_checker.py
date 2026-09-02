@@ -11,6 +11,7 @@ from mirai_conformance.expression import evaluate
 from mirai_conformance.graph_native import check_graph_native
 from mirai_conformance.runtime import validate_pure_episode, validate_sanitized_evidence
 from mirai_conformance.project import check_project
+from mirai_conformance.autonomic import check_autonomic
 from mirai_conformance.validator import load_json, validate_program
 
 
@@ -21,9 +22,55 @@ PURE_EPISODE_SCHEMA = MIRAI / "schemas/mirai-pure-episode.schema.json"
 SANITIZED_EVIDENCE_SCHEMA = MIRAI / "schemas/mirai-sanitized-evidence.schema.json"
 ACTIVATION_PLAN_SCHEMA = MIRAI / "schemas/activation-plan.schema.json"
 ACTIVATION_RUN_SCHEMA = MIRAI / "schemas/activation-run-result.schema.json"
+AUTONOMIC = MIRAI / "examples/mirai-autonomic-fabric-minimal/results"
 
 
 class CheckerTests(unittest.TestCase):
+    def test_autonomic_fabric_artifacts_pass_independently(self) -> None:
+        cases = [
+            ("source-snapshot", "source-snapshot.json", "source-snapshot.schema.json"),
+            ("knowledge-proposal", "knowledge-proposal.json", "knowledge-proposal.schema.json"),
+            ("autonomy-envelope", "autonomy-envelope.json", "autonomy-envelope.schema.json"),
+            ("evolution-proposal", "evolution-proposal.json", "evolution-proposal.schema.json"),
+            ("autonomic-cycle", "autonomic-cycle.json", "autonomic-cycle.schema.json"),
+        ]
+        for kind, artifact, schema in cases:
+            result = check_autonomic(kind, load_json(AUTONOMIC / artifact), load_json(MIRAI / "schemas" / schema))
+            self.assertEqual(result["status"], "passed", result)
+        observations = load_json(AUTONOMIC / "process-observations.json")["observations"]
+        candidates = load_json(AUTONOMIC / "process-candidates.json")["candidates"]
+        for value in observations:
+            result = check_autonomic("process-observation", value, load_json(MIRAI / "schemas/process-observation.schema.json"))
+            self.assertEqual(result["status"], "passed", result)
+        for value in candidates:
+            result = check_autonomic("process-candidate", value, load_json(MIRAI / "schemas/process-candidate.schema.json"))
+            self.assertEqual(result["status"], "passed", result)
+
+    def test_autonomic_decision_rejects_unsafe_automatic_promotion(self) -> None:
+        proposal = load_json(AUTONOMIC / "evolution-proposal.json")
+        envelope = load_json(AUTONOMIC / "autonomy-envelope.json")
+        decision = load_json(AUTONOMIC / "evolution-decision.json")
+        unsafe = copy.deepcopy(proposal)
+        payload = {"self_grant": True}
+        unsafe["changes"] = [{
+            "id": "change.protected", "kind": "protected_invariant",
+            "target_ref": "system/protected/safety", "stratum": "system_protected",
+            "operation": "upsert", "payload": payload, "payload_digest": digest_value(payload),
+            "risk": "critical", "confidence": 1, "reversible": False, "effectful": True,
+            "evidence_refs": [], "successful_replay_refs": [], "conflict_refs": [],
+        }]
+        unsafe["digest"] = digest_value({key: value for key, value in unsafe.items() if key != "digest"})
+        forged = copy.deepcopy(decision)
+        forged["proposal_digest"] = unsafe["digest"]
+        forged["change_decisions"] = [{"change_id": "change.protected", "verdict": "allow_automatic", "reason_codes": []}]
+        forged["verdict"] = "automatic_promotion_allowed"
+        forged["digest"] = digest_value({key: value for key, value in forged.items() if key != "digest"})
+        result = check_autonomic(
+            "evolution-decision", forged, load_json(MIRAI / "schemas/evolution-decision.schema.json"),
+            proposal=unsafe, envelope=envelope,
+        )
+        self.assertEqual(result["status"], "failed")
+        self.assertTrue(any("unsafe_automatic_verdict" in item for item in result["errors"]))
     def test_project_capsule_passes_independently(self) -> None:
         result = check_project(MIRAI, MIRAI / "schemas")
         self.assertEqual(result["status"], "passed", result)

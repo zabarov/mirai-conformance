@@ -1,6 +1,6 @@
 # Mirai Conformance
 
-Status: independent checker alpha (`0.3.0a1`)
+Status: independent checker alpha (`0.4.0a1`)
 
 [![Conformance](https://github.com/zabarov/mirai-conformance/actions/workflows/conformance.yml/badge.svg)](https://github.com/zabarov/mirai-conformance/actions/workflows/conformance.yml)
 
@@ -25,6 +25,9 @@ public runtime evidence:
   activation-plan and activation-run contracts;
 - independent graph snapshot, dependency DAG and aggregate trace digest checks.
 - Mirai 2.1 Project Capsule manifest, lock, START, facade and Agent Brief checks.
+- Mirai 2.2 source snapshots, normalized units, knowledge proposals, process
+  observations/candidates, autonomy envelopes, evolution decisions, promotion
+  receipts and bounded autonomic cycles.
 
 ## Install
 
@@ -87,6 +90,12 @@ mirai-conformance graph-native activation-run-result \
 mirai-conformance project ../mirai \
   --schemas ../mirai/schemas \
   --agent-brief agent-brief.json
+
+mirai-conformance autonomic evolution-decision \
+  evolution-decision.json \
+  --schema evolution-decision.schema.json \
+  --proposal evolution-proposal.json \
+  --envelope autonomy-envelope.json
 ```
 
 ## Boundary
