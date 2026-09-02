@@ -10,7 +10,7 @@ permissions:
 
 env:
   MIRAI_REFERENCE_REPOSITORY: zabarov/mirai-graph
-  MIRAI_REFERENCE_REVISION: eeb048121da54123566bc73f9024f37f8ddd688e
+  MIRAI_REFERENCE_REVISION: c654ff321299abe670fb71bee74ecae4dbe5e5fd
 
 jobs:
   test:
