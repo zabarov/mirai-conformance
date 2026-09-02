@@ -173,6 +173,44 @@ class CheckerTests(unittest.TestCase):
         self.assertEqual(result["status"], "failed")
         self.assertTrue(any("ambiguous_dispatch" in item for item in result["errors"]))
 
+    def test_technology_qualification_and_hybrid_plan_pass_independently(self) -> None:
+        root = MIRAI / "examples/mirai-technology-qualification-minimal"
+        qualification = load_json(root / "qualification-result.json")
+        hybrid = load_json(root / "hybrid-technology-plan.json")
+        qualification_result = check_graph_native(
+            "technology-qualification", qualification,
+            load_json(MIRAI / "schemas/technology-qualification.schema.json")
+        )
+        hybrid_result = check_graph_native(
+            "hybrid-technology-plan", hybrid,
+            load_json(MIRAI / "schemas/hybrid-technology-plan.schema.json")
+        )
+        self.assertEqual(qualification_result["status"], "passed", qualification_result)
+        self.assertEqual(hybrid_result["status"], "passed", hybrid_result)
+
+    def test_technology_qualification_authority_tampering_is_rejected(self) -> None:
+        root = MIRAI / "examples/mirai-technology-qualification-minimal"
+        qualification = load_json(root / "qualification-result.json")
+        tampered = copy.deepcopy(qualification)
+        tampered["activation_allowed"] = True
+        result = check_graph_native(
+            "technology-qualification", tampered,
+            load_json(MIRAI / "schemas/technology-qualification.schema.json")
+        )
+        self.assertEqual(result["status"], "failed")
+
+    def test_shadow_differential_passes_and_false_green_is_rejected(self) -> None:
+        artifact = load_json(MIRAI / "examples/mirai-shadow-differential-minimal/shadow-result.json")
+        schema = load_json(MIRAI / "schemas/shadow-differential-result.schema.json")
+        passing = check_graph_native("shadow-differential-result", artifact, schema)
+        self.assertEqual(passing["status"], "passed", passing)
+        tampered = copy.deepcopy(artifact)
+        tampered["mandatory_closure"]["missing_step_ids"] = ["step.required"]
+        tampered["digest"] = digest_value({key: value for key, value in tampered.items() if key != "digest"})
+        failing = check_graph_native("shadow-differential-result", tampered, schema)
+        self.assertEqual(failing["status"], "failed")
+        self.assertIn("shadow:blocker_summary_mismatch", failing["errors"])
+
 
 if __name__ == "__main__":
     unittest.main()

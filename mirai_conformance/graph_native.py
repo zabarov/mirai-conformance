@@ -142,6 +142,97 @@ def validate_technology_draft(document: dict[str, Any]) -> list[str]:
     return errors
 
 
+def validate_technology_qualification(document: dict[str, Any]) -> list[str]:
+    errors: list[str] = []
+    if document.get("canonical_write_allowed") is not False:
+        errors.append("technology_qualification:canonical_write_must_be_false")
+    if document.get("activation_allowed") is not False:
+        errors.append("technology_qualification:activation_must_be_false")
+    if digest_value(_without_digest(document)) != document.get("digest"):
+        errors.append("technology_qualification:digest_mismatch")
+    operations = document.get("operations", [])
+    errors.extend(_duplicate_ids([{"id": item.get("step_id")} for item in operations], "technology_qualification:operation"))
+    derived_blockers: set[str] = set()
+    for operation in operations:
+        classification = operation.get("classification")
+        acceptance = operation.get("acceptance")
+        blockers = set(operation.get("blockers", []))
+        derived_blockers.update(blockers)
+        if acceptance != "unreviewed" and not operation.get("acceptance_ref"):
+            errors.append(f"technology_qualification:acceptance_ref_missing:{operation.get('step_id')}")
+        if classification == "executable":
+            if not operation.get("program_ref") and not operation.get("adapter"):
+                errors.append(f"technology_qualification:execution_binding_missing:{operation.get('step_id')}")
+            if any(effect != "pure" for effect in operation.get("effects", [])) and not operation.get("capability"):
+                errors.append(f"technology_qualification:capability_missing:{operation.get('step_id')}")
+        elif classification == "verifiable":
+            if acceptance != "tester_accepted" or not operation.get("verification_ref"):
+                errors.append(f"technology_qualification:tester_verification_missing:{operation.get('step_id')}")
+        elif classification in {"advisory", "decision"}:
+            if acceptance != "owner_accepted" or not operation.get("owner_ref"):
+                errors.append(f"technology_qualification:owner_acceptance_missing:{operation.get('step_id')}")
+            if operation.get("program_ref") or operation.get("adapter") or operation.get("effects"):
+                errors.append(f"technology_qualification:human_operation_bound_to_effect:{operation.get('step_id')}")
+        elif classification == "unsupported" and "unsupported_operation" not in blockers:
+            errors.append(f"technology_qualification:unsupported_without_blocker:{operation.get('step_id')}")
+    declared_codes = {item.get("code") for item in document.get("blocking_diagnostics", [])}
+    if not derived_blockers.issubset(declared_codes):
+        errors.append("technology_qualification:operation_blocker_not_diagnosed")
+    status = document.get("status")
+    if (document.get("blocking_diagnostics") and status not in {"blocked", "program_candidate"}) or (status == "blocked" and document.get("simulation_allowed") is not False):
+        errors.append("technology_qualification:blocking_status_mismatch")
+    return errors
+
+
+def validate_hybrid_technology_plan(document: dict[str, Any]) -> list[str]:
+    errors: list[str] = []
+    if document.get("canonical_write_allowed") is not False:
+        errors.append("hybrid_plan:canonical_write_must_be_false")
+    if document.get("activation_allowed") is not False:
+        errors.append("hybrid_plan:activation_must_be_false")
+    if digest_value(_without_digest(document)) != document.get("digest"):
+        errors.append("hybrid_plan:digest_mismatch")
+    expected_modes = {
+        "executable": "program_operation", "verifiable": "verification_gate",
+        "advisory": "advisory_checkpoint", "decision": "decision_checkpoint",
+        "unsupported": "unsupported_blocker",
+    }
+    operations = document.get("operations", [])
+    errors.extend(_duplicate_ids([{"id": item.get("step_id")} for item in operations], "hybrid_plan:operation"))
+    for operation in operations:
+        if expected_modes.get(operation.get("classification")) != operation.get("mode"):
+            errors.append(f"hybrid_plan:operation_mode_mismatch:{operation.get('step_id')}")
+    human_required = document.get("qualification_status") in {"instruction_only", "hybrid_ready"}
+    if document.get("requires_human_coordination") is not human_required:
+        errors.append("hybrid_plan:human_coordination_mismatch")
+    if document.get("qualification_status") == "executable_ready" and not document.get("runtime_program_digest"):
+        errors.append("hybrid_plan:runtime_program_digest_missing")
+    return errors
+
+
+def validate_shadow_differential(document: dict[str, Any]) -> list[str]:
+    errors: list[str] = []
+    if document.get("canonical_write_allowed") is not False or document.get("activation_allowed") is not False:
+        errors.append("shadow:authority_boundary_broken")
+    if document.get("zero_write_proven") is not True:
+        errors.append("shadow:zero_write_not_proven")
+    if digest_value(_without_digest(document)) != document.get("digest"):
+        errors.append("shadow:digest_mismatch")
+    discovered = []
+    discovered.extend(document.get("mandatory_closure", {}).get("missing_step_ids", []))
+    discovered.extend(document.get("scope_delta", {}).get("unexpected_component_instances", []))
+    discovered.extend(document.get("scope_delta", {}).get("unexpected_operations", []))
+    discovered.extend(document.get("scope_delta", {}).get("unexpected_capabilities", []))
+    discovered.extend(document.get("effect_analysis", {}).get("unknown_effects", []))
+    discovered.extend(document.get("rollback_coverage", {}).get("missing_step_ids", []))
+    if bool(discovered) != bool(document.get("blockers")):
+        errors.append("shadow:blocker_summary_mismatch")
+    expected_verdict = "blocked" if document.get("blockers") else "passed"
+    if document.get("verdict") != expected_verdict:
+        errors.append("shadow:verdict_mismatch")
+    return errors
+
+
 def validate_activation_plan(document: dict[str, Any], snapshot: dict[str, Any] | None = None) -> tuple[list[str], list[list[str]]]:
     errors: list[str] = []
     if document.get("canonical_write_allowed") is not False:
@@ -222,6 +313,12 @@ def check_graph_native(
             errors.extend(validate_relation_fact(document))
         elif kind == "technology-draft":
             errors.extend(validate_technology_draft(document))
+        elif kind == "technology-qualification":
+            errors.extend(validate_technology_qualification(document))
+        elif kind == "hybrid-technology-plan":
+            errors.extend(validate_hybrid_technology_plan(document))
+        elif kind == "shadow-differential-result":
+            errors.extend(validate_shadow_differential(document))
         elif kind == "activation-plan":
             plan_errors, _ = validate_activation_plan(document, graph_snapshot)
             errors.extend(plan_errors)

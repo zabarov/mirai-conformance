@@ -41,7 +41,7 @@ def _parser() -> argparse.ArgumentParser:
     evidence.add_argument("--output")
 
     graph_native = commands.add_parser("graph-native", help="Validate a Mirai 2.1 graph-native artifact")
-    graph_native.add_argument("kind", choices=["source-catalog", "assimilation-proposal", "component-package", "relation-fact", "technology-draft", "activation-plan", "activation-run-result"])
+    graph_native.add_argument("kind", choices=["source-catalog", "assimilation-proposal", "component-package", "relation-fact", "technology-draft", "technology-qualification", "hybrid-technology-plan", "shadow-differential-result", "activation-plan", "activation-run-result"])
     graph_native.add_argument("artifact")
     graph_native.add_argument("--schema", required=True)
     graph_native.add_argument("--graph-snapshot")

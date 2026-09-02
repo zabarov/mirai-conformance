@@ -21,7 +21,8 @@ public runtime evidence:
 - sanitized runtime evidence, receipt sequence and effect-summary consistency;
 - fail-closed canonical-write and learning-update boundaries.
 - Mirai 2.1 source catalog, assimilation proposal, component, relation-fact,
-  technology-draft, activation-plan and activation-run contracts;
+  technology-draft, technology qualification, hybrid plan, shadow differential,
+  activation-plan and activation-run contracts;
 - independent graph snapshot, dependency DAG and aggregate trace digest checks.
 - Mirai 2.1 Project Capsule manifest, lock, START, facade and Agent Brief checks.
 
