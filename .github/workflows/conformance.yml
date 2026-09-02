@@ -10,7 +10,7 @@ permissions:
 
 env:
   MIRAI_REFERENCE_REPOSITORY: zabarov/mirai-graph
-  MIRAI_REFERENCE_REVISION: 0bfeb48b3d001d4f8a5ef1f17b9b6585189894eb
+  MIRAI_REFERENCE_REVISION: eeb048121da54123566bc73f9024f37f8ddd688e
 
 jobs:
   test:
@@ -54,11 +54,51 @@ jobs:
           --program-schema mirai-reference/schemas/mirai-program.schema.json
           --output conformance-result.json
 
+      - name: Check source snapshot independently
+        run: >-
+          mirai-conformance autonomic source-snapshot
+          mirai-reference/examples/mirai-autonomic-fabric-minimal/results/source-snapshot.json
+          --schema mirai-reference/schemas/source-snapshot.schema.json
+          --output autonomic-source-snapshot.json
+
+      - name: Check knowledge proposal independently
+        run: >-
+          mirai-conformance autonomic knowledge-proposal
+          mirai-reference/examples/mirai-autonomic-fabric-minimal/results/knowledge-proposal.json
+          --schema mirai-reference/schemas/knowledge-proposal.schema.json
+          --output autonomic-knowledge-proposal.json
+
+      - name: Check autonomy envelope independently
+        run: >-
+          mirai-conformance autonomic autonomy-envelope
+          mirai-reference/examples/mirai-autonomic-fabric-minimal/results/autonomy-envelope.json
+          --schema mirai-reference/schemas/autonomy-envelope.schema.json
+          --output autonomic-autonomy-envelope.json
+
+      - name: Check evolution decision independently
+        run: >-
+          mirai-conformance autonomic evolution-decision
+          mirai-reference/examples/mirai-autonomic-fabric-minimal/results/evolution-decision.json
+          --schema mirai-reference/schemas/evolution-decision.schema.json
+          --proposal mirai-reference/examples/mirai-autonomic-fabric-minimal/results/evolution-proposal.json
+          --envelope mirai-reference/examples/mirai-autonomic-fabric-minimal/results/autonomy-envelope.json
+          --output autonomic-evolution-decision.json
+
+      - name: Check bounded cycle independently
+        run: >-
+          mirai-conformance autonomic autonomic-cycle
+          mirai-reference/examples/mirai-autonomic-fabric-minimal/results/autonomic-cycle.json
+          --schema mirai-reference/schemas/autonomic-cycle.schema.json
+          --output autonomic-autonomic-cycle.json
+
       - name: Upload conformance result
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: conformance-result-${{ matrix.os }}
-          path: conformance-result.json
+          path: |
+            conformance-result.json
+            autonomic-*.json
 
   package:
     runs-on: ubuntu-latest

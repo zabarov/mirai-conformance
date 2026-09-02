@@ -1,6 +1,6 @@
 # Mirai Conformance
 
-Status: independent checker alpha (`0.4.0a1`)
+Status: independent checker alpha (`0.4.0a2`); Mirai 2.2 candidate CI pending
 
 [![Conformance](https://github.com/zabarov/mirai-conformance/actions/workflows/conformance.yml/badge.svg)](https://github.com/zabarov/mirai-conformance/actions/workflows/conformance.yml)
 
@@ -99,6 +99,11 @@ mirai-conformance autonomic evolution-decision \
 ```
 
 ## Boundary
+
+The Mirai 2.2 candidate is pinned in CI to
+`eeb048121da54123566bc73f9024f37f8ddd688e`. Local tests do not establish public
+cross-platform verification; record the public CI run before treating the
+candidate as a stable release gate.
 
 Passing this checker proves agreement with the checked public corpus or
 internal consistency of the supplied sanitized evidence. It does not prove
