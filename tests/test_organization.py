@@ -106,6 +106,17 @@ class OrganizationTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "context_snapshot_binding"):
             self.check(value)
 
+    def test_sensitive_property_names_fail_at_graph_admission(self):
+        value = copy.deepcopy(self.bundle)
+        value["graph"]["objects"][0]["metadata"] = {
+            "nested": {"ghp_1234567890abcdefghij": "redacted"}
+        }
+        value["graph"]["digest"] = digest_value({
+            key: item for key, item in value["graph"].items() if key != "digest"
+        })
+        with self.assertRaisesRegex(ValueError, "sensitive_content_rejected"):
+            self.check(value)
+
     def test_program_task_binding_requires_version_effect_and_capability(self):
         program = json.loads((self.schemas.parent / "examples/mirai-task-runtime-minimal/main.mirai.json").read_text())
         schema = json.loads((self.schemas / "mirai-program.schema.json").read_text())

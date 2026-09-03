@@ -18,10 +18,38 @@ from jsonschema import Draft202012Validator, FormatChecker
 from .canonical import digest_value
 from .validator import value_matches_type
 
+SENSITIVE_CONTENT = re.compile(
+    r"(?:BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY|\b(?:ghp_|sk-proj-|xoxb-)[A-Za-z0-9_-]{8,}|/Users/|[A-Za-z]:\\Users\\)"
+)
+
 
 def require(condition, code):
     if not condition:
         raise ValueError(code)
+
+
+def check_json_admission(value, depth=0, counter=None):
+    counter = counter if counter is not None else [0]
+    counter[0] += 1
+    require(depth <= 16 and counter[0] <= 1_000_000, "graph_structure_budget_exceeded")
+    if value is None or isinstance(value, bool):
+        return
+    if isinstance(value, (int, float)):
+        require(not isinstance(value, float) or value == value and abs(value) != float("inf"), "non_finite_value")
+        return
+    if isinstance(value, str):
+        require(len(value) <= 4096, "graph_string_budget_exceeded")
+        require(not SENSITIVE_CONTENT.search(value), "sensitive_content_rejected")
+        return
+    if isinstance(value, list):
+        for item in value:
+            check_json_admission(item, depth + 1, counter)
+        return
+    require(isinstance(value, dict), "non_json_value")
+    for key, item in value.items():
+        require(isinstance(key, str) and key not in {"__proto__", "constructor", "prototype"}, "unsafe_json_property")
+        check_json_admission(key, depth + 1, counter)
+        check_json_admission(item, depth + 1, counter)
 
 
 def sealed(value):
@@ -33,6 +61,7 @@ def check_digest(value):
 
 
 def check_graph(graph, schemas):
+    check_json_admission(graph)
     Draft202012Validator(schemas["graph-operation-snapshot"], format_checker=FormatChecker()).validate(graph)
     check_digest(graph)
     objects = {item["id"]: item for item in graph["objects"]}
