@@ -9,6 +9,7 @@ from typing import Any
 from jsonschema import Draft202012Validator
 
 from .canonical import canonical_json, program_digest
+from .program_extensions import TASK_EFFECTS, validate_bindings
 
 ALLOWED_EFFECTS = {
     "pure",
@@ -228,7 +229,7 @@ def _validate_node(node: dict[str, Any], refs: set[str], env: dict[str, Any], pr
         for key, expression in (node.get("args") or {}).items():
             _infer_expression(expression, env, errors, f"{label}.args.{key}")
         for effect in node.get("effects", []):
-            if effect not in ALLOWED_EFFECTS:
+            if effect not in ALLOWED_EFFECTS and not (program.get("contract_version") == "1.1.0" and effect in TASK_EFFECTS):
                 errors.append(f"{label}:unknown_effect:{effect}")
             if effect not in program.get("policies", {}).get("allowed_effects", []):
                 errors.append(f"{label}:effect_not_allowed:{effect}")
@@ -326,7 +327,7 @@ def _validate_node(node: dict[str, Any], refs: set[str], env: dict[str, Any], pr
         errors.append(f"{label}:next_required")
 
 
-def validate_program(program: Any, schema: dict[str, Any] | None = None, verify_digest: bool = True) -> list[str]:
+def validate_program(program: Any, schema: dict[str, Any] | None = None, verify_digest: bool = True, catalog=None, schema_registry=None) -> list[str]:
     errors: list[str] = []
     if schema is not None:
         validator = Draft202012Validator(schema)
@@ -378,10 +379,11 @@ def validate_program(program: Any, schema: dict[str, Any] | None = None, verify_
             errors.append(f"duplicate_import_alias:{alias}")
         aliases.add(alias)
     for effect in policies.get("allowed_effects", []):
-        if effect not in ALLOWED_EFFECTS:
+        if effect not in ALLOWED_EFFECTS and not (program.get("contract_version") == "1.1.0" and effect in TASK_EFFECTS):
             errors.append(f"unknown_allowed_effect:{effect}")
     if policies.get("canonical_write_allowed") is not False:
         errors.append("canonical_write_must_be_false")
+    errors.extend(validate_bindings(program, catalog, schema_registry))
     for node in nodes:
         if isinstance(node, dict):
             _validate_node(node, refs, env, program, errors)
