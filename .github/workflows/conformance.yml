@@ -10,7 +10,7 @@ permissions:
 
 env:
   MIRAI_REFERENCE_REPOSITORY: zabarov/mirai-graph
-  MIRAI_REFERENCE_REVISION: c654ff321299abe670fb71bee74ecae4dbe5e5fd
+  MIRAI_REFERENCE_REVISION: 536d0a3da6d66254fb58e9347d6c6c9bc4fcb688
 
 jobs:
   test:
@@ -44,6 +44,7 @@ jobs:
       - name: Run independent tests
         env:
           MIRAI_REPO: ${{ github.workspace }}/mirai-reference
+          MIRAI_ORGANIZATION_BUNDLE: ${{ github.workspace }}/mirai-reference/conformance/corpus/organization-2.3/bundle.json
           PYTHONDONTWRITEBYTECODE: "1"
         run: python -m unittest discover -s tests -v
 
