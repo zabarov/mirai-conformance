@@ -58,6 +58,8 @@ def validate_evidence(document: dict[str, Any]) -> list[str]:
     for hit in document.get("hits", []):
         if not hit.get("source_ref") or not hit.get("evidence_refs"):
             errors.append(f"retrieval_evidence:unbound_hit:{hit.get('document_id')}")
+        if hit.get("instructions_authorized") is not False:
+            errors.append(f"retrieval_evidence:authorized_instruction_hit:{hit.get('document_id')}")
     if document.get("conflicts") and not document.get("partial"):
         errors.append("retrieval_evidence:conflict_not_marked_partial")
     return errors
@@ -109,11 +111,25 @@ def validate_federated_result(document: dict[str, Any], envelope: dict[str, Any]
     if _digest(document) != document.get("digest"):
         errors.append("federated_result:digest_mismatch")
     evidence = document.get("evidence_bundle", {})
+    if evidence.get("canonical_write_allowed") is not False:
+        errors.append("federated_result:evidence_authority_boundary_broken")
     errors.extend(validate_evidence(evidence))
     if document.get("query_digest") != evidence.get("query_digest") or document.get("policy_digest") != evidence.get("policy_digest"):
         errors.append("federated_result:evidence_binding_mismatch")
-    if envelope is not None and document.get("query_id") != envelope.get("id"):
-        errors.append("federated_result:query_id_mismatch")
+    if envelope is not None:
+        if document.get("query_id") != envelope.get("id"):
+            errors.append("federated_result:query_id_mismatch")
+        requester = envelope.get("requester", {})
+        allowed_sources = set(requester.get("source_refs", []))
+        allowed_scopes = set(requester.get("scopes", []))
+        if any(ref not in allowed_sources for ref in evidence.get("source_refs", [])):
+            errors.append("federated_result:source_scope_violation")
+        for hit in evidence.get("hits", []):
+            if hit.get("source_ref") not in allowed_sources or hit.get("scope") not in allowed_scopes:
+                errors.append(f"federated_result:hit_scope_violation:{hit.get('document_id')}")
+        usage = document.get("usage", {})
+        if usage.get("tokens_used", -1) > envelope.get("token_budget", 0) or usage.get("cost_used", -1) > envelope.get("cost_budget", 0):
+            errors.append("federated_result:budget_exceeded")
     return errors
 
 

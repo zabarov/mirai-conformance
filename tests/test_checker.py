@@ -13,7 +13,7 @@ from mirai_conformance.runtime import validate_pure_episode, validate_sanitized_
 from mirai_conformance.project import check_project
 from mirai_conformance.autonomic import check_autonomic
 from mirai_conformance.validator import load_json, validate_program
-from mirai_conformance.retrieval import check_retrieval
+from mirai_conformance.retrieval import check_retrieval, validate_federated_result
 
 
 MIRAI = Path(os.environ.get("MIRAI_REPO", Path(__file__).resolve().parents[2] / "mirai-graph")).resolve()
@@ -68,7 +68,32 @@ class CheckerTests(unittest.TestCase):
             load_json(MIRAI / "schemas/retrieval-index-descriptor.schema.json"),
         )
         self.assertEqual(result["status"], "failed")
-        self.assertIn("retrieval_descriptor:semantic_binding_missing", result["errors"])
+        self.assertTrue(any("semantic_revision" in error or "semantic_files_digest" in error for error in result["errors"]), result)
+
+    def test_federated_retrieval_rejects_out_of_scope_hits_and_budget_overrun(self) -> None:
+        envelope = {
+            "id": "query.demo", "requester": {"source_refs": ["source.allowed"], "scopes": ["scope.allowed"]},
+            "token_budget": 10, "cost_budget": 1,
+        }
+        evidence = {
+            "contract_version": "1.0.0", "query_digest": "sha256:" + "a" * 64,
+            "index_digest": "sha256:" + "b" * 64, "graph_digest": None,
+            "policy_digest": "sha256:" + "c" * 64,
+            "hits": [{"document_id": "forbidden", "source_ref": "source.forbidden", "scope": "scope.forbidden", "evidence_refs": ["evidence.demo"], "instructions_authorized": False}],
+            "source_refs": ["source.forbidden"], "conflicts": [], "limitations": [], "partial": False,
+            "instructions_authorized": False, "canonical_write_allowed": False,
+        }
+        evidence["digest"] = digest_value(evidence)
+        result = {
+            "query_id": "query.demo", "query_digest": evidence["query_digest"], "policy_digest": evidence["policy_digest"],
+            "evidence_bundle": evidence, "usage": {"tokens_used": 11, "cost_used": 0, "duration_ms": 1},
+            "instructions_authorized": False, "canonical_write_allowed": False,
+        }
+        result["digest"] = digest_value(result)
+        errors = validate_federated_result(result, envelope)
+        self.assertIn("federated_result:source_scope_violation", errors)
+        self.assertIn("federated_result:hit_scope_violation:forbidden", errors)
+        self.assertIn("federated_result:budget_exceeded", errors)
 
     def test_autonomic_fabric_artifacts_pass_independently(self) -> None:
         cases = [
