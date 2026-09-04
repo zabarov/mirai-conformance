@@ -37,6 +37,7 @@ class CheckerTests(unittest.TestCase):
         cases = [
             ("contract", "outcome-contract.json", "outcome-completion-contract.schema.json", {}),
             ("candidate-set", "candidate-set.json", "outcome-candidate-set.schema.json", {"contract": contract}),
+            ("evidence-set", "evidence-set.json", "outcome-evidence-set.schema.json", {"contract": contract}),
             ("assessment", "assessment.json", "outcome-assessment.schema.json", {"contract": contract, "candidates": candidates, "evidence": evidence}),
             ("delivery-plan", "delivery-plan.json", "outcome-delivery-plan.schema.json", {"assessment": assessment}),
         ]
@@ -55,31 +56,49 @@ class CheckerTests(unittest.TestCase):
         tampered["digest"] = digest_value({key: value for key, value in tampered.items() if key != "digest"})
         result = check_outcome("assessment", tampered, load_json(MIRAI / "schemas/outcome-assessment.schema.json"), contract=contract, candidates=candidates, evidence=evidence)
         self.assertEqual(result["status"], "failed")
-        self.assertTrue(any("forged_evidence" in error for error in result["errors"]), result)
+        self.assertIn("outcome_assessment:semantic_mismatch", result["errors"])
 
     def test_outcome_aggregate_checks_parent_binding_and_incomplete_children(self) -> None:
         root = MIRAI / "examples/mirai-outcome-completion-minimal"
         parent = load_json(root / "outcome-contract.json")
+        child_contract = load_json(root / "child-outcome-contract.json")
+        child_candidates = load_json(root / "child-candidate-set.json")
+        child_evidence = load_json(root / "child-evidence-set.json")
         child = load_json(root / "child-assessment.json")
+        incomplete_candidates = copy.deepcopy(child_candidates)
+        incomplete_candidates["id"] = "candidates.release-readiness-child-incomplete"
+        incomplete_candidates["candidates"] = [item for item in incomplete_candidates["candidates"] if item["slot_id"] != "test_status"]
+        incomplete_candidates["digest"] = digest_value({key: value for key, value in incomplete_candidates.items() if key != "digest"})
         incomplete = load_json(root / "incomplete-child-assessment.json")
+        child_bundle = {"contract": child_contract, "candidates": child_candidates, "evidence": child_evidence, "assessment": child}
+        incomplete_bundle = {"contract": child_contract, "candidates": incomplete_candidates, "evidence": child_evidence, "assessment": incomplete}
         aggregate = load_json(root / "aggregate-assessment.json")
         schema = load_json(MIRAI / "schemas/outcome-assessment.schema.json")
-        result = check_outcome("aggregate-assessment", aggregate, schema, contract=parent, child_assessments=[child, incomplete])
+        result = check_outcome("aggregate-assessment", aggregate, schema, contract=parent, child_bundles=[child_bundle, incomplete_bundle])
         self.assertEqual(result["status"], "passed", result)
 
         hidden = copy.deepcopy(aggregate)
         hidden["status"] = "satisfied"
         hidden["digest"] = digest_value({key: value for key, value in hidden.items() if key != "digest"})
-        result = check_outcome("aggregate-assessment", hidden, schema, contract=parent, child_assessments=[child, incomplete])
+        result = check_outcome("aggregate-assessment", hidden, schema, contract=parent, child_bundles=[child_bundle, incomplete_bundle])
         self.assertEqual(result["status"], "failed")
-        self.assertIn("outcome_aggregate:status_mismatch", result["errors"])
+        self.assertIn("outcome_aggregate:semantic_mismatch", result["errors"])
 
-        unbound = copy.deepcopy(child)
-        unbound["parent_contract_digest"] = "sha256:" + "a" * 64
-        unbound["digest"] = digest_value({key: value for key, value in unbound.items() if key != "digest"})
-        result = check_outcome("aggregate-assessment", aggregate, schema, contract=parent, child_assessments=[unbound, incomplete])
+        unbound_contract = copy.deepcopy(child_contract)
+        unbound_contract["parent_contract_digest"] = "sha256:" + "a" * 64
+        unbound_contract["digest"] = digest_value({key: value for key, value in unbound_contract.items() if key != "digest"})
+        unbound_bundle = {**child_bundle, "contract": unbound_contract}
+        result = check_outcome("aggregate-assessment", aggregate, schema, contract=parent, child_bundles=[unbound_bundle, incomplete_bundle])
         self.assertEqual(result["status"], "failed")
-        self.assertTrue(any("child_parent_binding_mismatch" in error for error in result["errors"]), result)
+        self.assertTrue(any("parent_binding_mismatch" in error for error in result["errors"]), result)
+
+        forged_candidates = copy.deepcopy(child_candidates)
+        forged_candidates["candidates"][0]["value"] = "laundered-value"
+        forged_candidates["digest"] = digest_value({key: value for key, value in forged_candidates.items() if key != "digest"})
+        forged_bundle = {**child_bundle, "candidates": forged_candidates}
+        result = check_outcome("aggregate-assessment", aggregate, schema, contract=parent, child_bundles=[forged_bundle, incomplete_bundle])
+        self.assertEqual(result["status"], "failed")
+        self.assertTrue(any("assessment_semantic_mismatch" in error for error in result["errors"]), result)
 
     def test_retrieval_artifacts_pass_independently(self) -> None:
         results = MIRAI / "examples/mirai-retrieval-minimal/results"

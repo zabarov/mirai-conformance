@@ -124,8 +124,8 @@ mirai-conformance outcome assessment assessment.json \
 mirai-conformance outcome aggregate-assessment aggregate-assessment.json \
   --schema outcome-assessment.schema.json \
   --contract parent-outcome-contract.json \
-  --child-assessment child-a.json \
-  --child-assessment child-b.json
+  --child-bundle child-a-bundle.json \
+  --child-bundle child-b-bundle.json
 ```
 
 ## Boundary

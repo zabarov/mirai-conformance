@@ -10,7 +10,7 @@ permissions:
 
 env:
   MIRAI_REFERENCE_REPOSITORY: zabarov/mirai-graph
-  MIRAI_REFERENCE_REVISION: 8bc65458c478955f7fd8472fed0eedb01bf9df6c
+  MIRAI_REFERENCE_REVISION: 7b2ef0443b246eae1f8efa4484ba3f39fe24e9ad
 
 jobs:
   test:
@@ -130,8 +130,8 @@ jobs:
           mirai-reference/examples/mirai-outcome-completion-minimal/aggregate-assessment.json
           --schema mirai-reference/schemas/outcome-assessment.schema.json
           --contract mirai-reference/examples/mirai-outcome-completion-minimal/outcome-contract.json
-          --child-assessment mirai-reference/examples/mirai-outcome-completion-minimal/child-assessment.json
-          --child-assessment mirai-reference/examples/mirai-outcome-completion-minimal/incomplete-child-assessment.json
+          --child-bundle mirai-reference/examples/mirai-outcome-completion-minimal/child-bundle.json
+          --child-bundle mirai-reference/examples/mirai-outcome-completion-minimal/incomplete-child-bundle.json
           --output outcome-aggregate-assessment.json
 
       - name: Upload conformance result
