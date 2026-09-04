@@ -14,7 +14,7 @@ from mirai_conformance.project import check_project
 from mirai_conformance.autonomic import check_autonomic
 from mirai_conformance.validator import load_json, validate_program
 from mirai_conformance.retrieval import check_retrieval, validate_federated_result
-from mirai_conformance.outcome import check_outcome
+from mirai_conformance.outcome import check_outcome, validate_contract
 
 
 MIRAI = Path(os.environ.get("MIRAI_REPO", Path(__file__).resolve().parents[2] / "mirai-graph")).resolve()
@@ -68,6 +68,15 @@ class CheckerTests(unittest.TestCase):
         no_admission = check_outcome("assessment", assessment, load_json(MIRAI / "schemas/outcome-assessment.schema.json"), contract=contract, candidates=candidates, evidence=evidence)
         self.assertEqual(no_admission["status"], "failed")
         self.assertIn("outcome_assessment:bindings_required", no_admission["errors"])
+
+        no_critical = copy.deepcopy(contract)
+        for slot in no_critical["required_slots"] + no_critical["optional_slots"]:
+            slot["critical"] = False
+            slot["evidence_required"] = False
+        no_critical["digest"] = digest_value({key: value for key, value in no_critical.items() if key != "digest"})
+        result = check_outcome("contract", no_critical, load_json(MIRAI / "schemas/outcome-completion-contract.schema.json"))
+        self.assertEqual(result["status"], "failed")
+        self.assertIn("outcome_contract:critical_evidence_required_slot_missing", validate_contract(no_critical))
 
     def test_outcome_aggregate_checks_parent_binding_and_incomplete_children(self) -> None:
         root = MIRAI / "examples/mirai-outcome-completion-minimal"
