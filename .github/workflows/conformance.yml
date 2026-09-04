@@ -10,7 +10,7 @@ permissions:
 
 env:
   MIRAI_REFERENCE_REPOSITORY: zabarov/mirai-graph
-  MIRAI_REFERENCE_REVISION: 3a4a64c1da8cfb12dc28091d05f8a912a9947e9e
+  MIRAI_REFERENCE_REVISION: e28ce76c02709ce741fe36d132c138ad6579c509
 
 jobs:
   test:
@@ -114,6 +114,16 @@ jobs:
           --schema mirai-reference/schemas/retrieval-evaluation.schema.json
           --output retrieval-evaluation.json
 
+      - name: Check Outcome Completion assessment independently
+        run: >-
+          mirai-conformance outcome assessment
+          mirai-reference/examples/mirai-outcome-completion-minimal/assessment.json
+          --schema mirai-reference/schemas/outcome-assessment.schema.json
+          --contract mirai-reference/examples/mirai-outcome-completion-minimal/outcome-contract.json
+          --candidates mirai-reference/examples/mirai-outcome-completion-minimal/candidate-set.json
+          --evidence mirai-reference/examples/mirai-outcome-completion-minimal/evidence-set.json
+          --output outcome-assessment.json
+
       - name: Upload conformance result
         if: always()
         uses: actions/upload-artifact@v4
@@ -123,6 +133,7 @@ jobs:
             conformance-result.json
             autonomic-*.json
             retrieval-*.json
+            outcome-*.json
 
   package:
     runs-on: ubuntu-latest

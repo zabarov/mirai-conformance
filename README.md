@@ -9,8 +9,8 @@ mirai-conformance retrieval answer path/to/answer.json \
   --evidence path/to/evidence-bundle.json
 ```
 
-Status: independent checker alpha (`0.6.0a1`); Mirai 2.5 revision binding is
-pending the local candidate commit.
+Status: independent checker alpha (`0.6.0a1`), bound to the exact Mirai 2.5
+CI candidate revision declared in the workflow.
 
 [![Conformance](https://github.com/zabarov/mirai-conformance/actions/workflows/conformance.yml/badge.svg)](https://github.com/zabarov/mirai-conformance/actions/workflows/conformance.yml)
 
