@@ -78,6 +78,8 @@ def _parser() -> argparse.ArgumentParser:
     outcome.add_argument("--evidence")
     outcome.add_argument("--assessment")
     outcome.add_argument("--child-bundle", action="append", default=[])
+    outcome.add_argument("--admission-policy-digest")
+    outcome.add_argument("--admitted-receipt", action="append", default=[])
     outcome.add_argument("--output")
     return parser
 
@@ -124,6 +126,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             evidence=load_json(args.evidence) if args.evidence else None,
             assessment=load_json(args.assessment) if args.assessment else None,
             child_bundles=[load_json(item) for item in args.child_bundle],
+            admission_policy_digest=args.admission_policy_digest,
+            admitted_receipts=set(args.admitted_receipt),
         )
     if args.output:
         write_json(Path(args.output), result)

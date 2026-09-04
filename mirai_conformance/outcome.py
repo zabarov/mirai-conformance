@@ -123,7 +123,7 @@ def _empty_slot(slot_id: str, state: str, reasons: list[str], candidate_refs: li
     return {"slot_id": slot_id, "state": state, "candidate_refs": candidate_refs or [], "admitted_evidence_refs": [], "source_refs": source_refs or [], "reasons": reasons, "content_is_untrusted_data": True}
 
 
-def _assess_slot(contract: dict[str, Any], slot: dict[str, Any], candidates: dict[str, Any], evidence: dict[str, Any]) -> dict[str, Any]:
+def _assess_slot(contract: dict[str, Any], slot: dict[str, Any], candidates: dict[str, Any], evidence: dict[str, Any], admitted_receipts: set[str]) -> dict[str, Any]:
     matches = sorted((item for item in candidates.get("candidates", []) if item.get("slot_id") == slot.get("id")), key=lambda item: item.get("id", ""))
     if not matches:
         reason = "user_input_required" if slot.get("acquisition") == "user_input" else "candidate_missing"
@@ -142,6 +142,7 @@ def _assess_slot(contract: dict[str, Any], slot: dict[str, Any], candidates: dic
         and item.get("value_digest") == value_digest
         and _DIGEST.fullmatch(str(item.get("admission_receipt_digest", "")))
         and item.get("digest") == _digest(item)
+        and item.get("admission_receipt_digest") in admitted_receipts
     ]
     authorized = [item for item in matching if item.get("authorized") is True]
     if slot.get("evidence_required") and not matching:
@@ -199,9 +200,9 @@ def _coverage(confirmed: int, total: int) -> int | float:
     return int(value) if value in {0.0, 1.0} else value
 
 
-def _assessment_body(contract: dict[str, Any], candidates: dict[str, Any], evidence: dict[str, Any]) -> dict[str, Any]:
+def _assessment_body(contract: dict[str, Any], candidates: dict[str, Any], evidence: dict[str, Any], admitted_receipts: set[str]) -> dict[str, Any]:
     definitions = contract.get("required_slots", []) + contract.get("optional_slots", [])
-    slots = [_assess_slot(contract, slot, candidates, evidence) for slot in definitions]
+    slots = [_assess_slot(contract, slot, candidates, evidence, admitted_receipts) for slot in definitions]
     status = _expected_status(contract, candidates.get("context", {}), slots)
     by_state = lambda state: [slot["slot_id"] for slot in slots if slot.get("state") == state]
     required_ids = {slot["id"] for slot in contract.get("required_slots", [])}
@@ -214,20 +215,24 @@ def _assessment_body(contract: dict[str, Any], candidates: dict[str, Any], evide
     return body
 
 
-def _recompute_assessment(contract: dict[str, Any], candidates: dict[str, Any], evidence: dict[str, Any]) -> dict[str, Any]:
-    return _seal(_assessment_body(contract, candidates, evidence))
+def _recompute_assessment(contract: dict[str, Any], candidates: dict[str, Any], evidence: dict[str, Any], admitted_receipts: set[str]) -> dict[str, Any]:
+    return _seal(_assessment_body(contract, candidates, evidence, admitted_receipts))
 
 
-def validate_assessment(document: dict[str, Any], contract: dict[str, Any] | None, candidates: dict[str, Any] | None, evidence: dict[str, Any] | None) -> list[str]:
+def validate_assessment(document: dict[str, Any], contract: dict[str, Any] | None, candidates: dict[str, Any] | None, evidence: dict[str, Any] | None, admission_policy_digest: str | None, admitted_receipts: set[str]) -> list[str]:
     errors = _boundaries(document, "outcome_assessment")
-    if contract is None or candidates is None or evidence is None:
+    if contract is None or candidates is None or evidence is None or admission_policy_digest is None:
         return errors + ["outcome_assessment:bindings_required"]
     errors.extend(validate_contract(contract))
     errors.extend(validate_candidates(candidates, contract))
     errors.extend(validate_evidence(evidence, contract))
+    if evidence.get("policy_digest") != admission_policy_digest:
+        errors.append("outcome_assessment:admission_policy_mismatch")
+    if not admitted_receipts:
+        errors.append("outcome_assessment:admission_receipts_required")
     if any(slot.get("content_is_untrusted_data") is not True for slot in document.get("slots", [])):
         errors.append("outcome_assessment:trust_boundary_broken")
-    if document != _recompute_assessment(contract, candidates, evidence):
+    if document != _recompute_assessment(contract, candidates, evidence, admitted_receipts):
         errors.append("outcome_assessment:semantic_mismatch")
     return errors
 
@@ -267,9 +272,37 @@ def _aggregate_body(contract: dict[str, Any], assessments: list[dict[str, Any]])
     return body
 
 
-def validate_aggregate(document: dict[str, Any], contract: dict[str, Any] | None, child_bundles: list[dict[str, Any]] | None) -> list[str]:
+def _child_preserves_parent(parent: dict[str, Any], child: dict[str, Any]) -> bool:
+    parent_scope, child_scope = parent.get("scope", {}), child.get("scope", {})
+    if child_scope.get("purpose") != parent_scope.get("purpose"):
+        return False
+    if any(domain not in parent_scope.get("domains", []) for domain in child_scope.get("domains", [])):
+        return False
+    if parent_scope.get("effect") == "read_only" and child_scope.get("effect") != "read_only":
+        return False
+    if parent.get("conflict_policy", {}).get("noncritical_conflict") == "block" and child.get("conflict_policy", {}).get("noncritical_conflict") != "block":
+        return False
+    child_slots = {slot.get("id"): slot for slot in child.get("required_slots", []) + child.get("optional_slots", [])}
+    for parent_slot in parent.get("required_slots", []) + parent.get("optional_slots", []):
+        child_slot = child_slots.get(parent_slot.get("id"))
+        if child_slot is None:
+            continue
+        if child_slot.get("value_type") != parent_slot.get("value_type"):
+            return False
+        if parent_slot.get("critical") and not child_slot.get("critical"):
+            return False
+        if parent_slot.get("evidence_required") and not child_slot.get("evidence_required"):
+            return False
+        if _AUTHORITIES.get(child_slot.get("minimum_authority"), -1) < _AUTHORITIES.get(parent_slot.get("minimum_authority"), 99):
+            return False
+        if _REQUIRED_FRESHNESS.get(child_slot.get("freshness_required"), -1) < _REQUIRED_FRESHNESS.get(parent_slot.get("freshness_required"), 99):
+            return False
+    return True
+
+
+def validate_aggregate(document: dict[str, Any], contract: dict[str, Any] | None, child_bundles: list[dict[str, Any]] | None, admission_policy_digest: str | None, admitted_receipts: set[str]) -> list[str]:
     errors = _boundaries(document, "outcome_aggregate")
-    if contract is None or not child_bundles:
+    if contract is None or not child_bundles or admission_policy_digest is None or not admitted_receipts:
         return errors + ["outcome_aggregate:bindings_required"]
     errors.extend(validate_contract(contract))
     assessments: list[dict[str, Any]] = []
@@ -282,7 +315,11 @@ def validate_aggregate(document: dict[str, Any], contract: dict[str, Any] | None
         child_errors = validate_contract(child_contract) + validate_candidates(candidates, child_contract) + validate_evidence(evidence, child_contract)
         if child_contract.get("digest") != contract.get("digest") and child_contract.get("parent_contract_digest") != contract.get("digest"):
             child_errors.append("parent_binding_mismatch")
-        recomputed = _recompute_assessment(child_contract, candidates, evidence)
+        if not _child_preserves_parent(contract, child_contract):
+            child_errors.append("child_policy_weakened")
+        if evidence.get("policy_digest") != admission_policy_digest:
+            child_errors.append("admission_policy_mismatch")
+        recomputed = _recompute_assessment(child_contract, candidates, evidence, admitted_receipts)
         if assessment != recomputed:
             child_errors.append("assessment_semantic_mismatch")
         if any(slot.get("content_is_untrusted_data") is not True for slot in assessment.get("slots", [])):
@@ -323,15 +360,19 @@ def validate_pilot(document: dict[str, Any]) -> list[str]:
     return errors
 
 
-def check_outcome(kind: str, document: dict[str, Any], schema: dict[str, Any], *, contract: dict[str, Any] | None = None, candidates: dict[str, Any] | None = None, evidence: dict[str, Any] | None = None, assessment: dict[str, Any] | None = None, child_bundles: list[dict[str, Any]] | None = None) -> dict[str, Any]:
+def check_outcome(kind: str, document: dict[str, Any], schema: dict[str, Any], *, contract: dict[str, Any] | None = None, candidates: dict[str, Any] | None = None, evidence: dict[str, Any] | None = None, assessment: dict[str, Any] | None = None, child_bundles: list[dict[str, Any]] | None = None, admission_policy_digest: str | None = None, admitted_receipts: set[str] | None = None) -> dict[str, Any]:
+    admitted_receipts = admitted_receipts or set()
     errors = _schema_errors(document, schema)
     if not errors:
         if kind == "contract": errors.extend(validate_contract(document))
         elif kind == "candidate-set": errors.extend(validate_candidates(document, contract))
         elif kind == "evidence-set": errors.extend(validate_evidence(document, contract))
-        elif kind == "assessment": errors.extend(validate_assessment(document, contract, candidates, evidence))
-        elif kind == "aggregate-assessment": errors.extend(validate_aggregate(document, contract, child_bundles))
-        elif kind == "delivery-plan": errors.extend(validate_delivery(document, assessment))
+        elif kind == "assessment": errors.extend(validate_assessment(document, contract, candidates, evidence, admission_policy_digest, admitted_receipts))
+        elif kind == "aggregate-assessment": errors.extend(validate_aggregate(document, contract, child_bundles, admission_policy_digest, admitted_receipts))
+        elif kind == "delivery-plan":
+            errors.extend(validate_delivery(document, assessment))
+            if assessment is not None:
+                errors.extend(validate_assessment(assessment, contract, candidates, evidence, admission_policy_digest, admitted_receipts))
         elif kind == "pilot-result": errors.extend(validate_pilot(document))
         else: errors.append(f"outcome:unknown_kind:{kind}")
     return {"contract_version": "1.0.0", "implementation": "python_independent", "kind": kind, "status": "passed" if not errors else "failed", "artifact_digest": digest_value(document), "errors": sorted(set(errors)), "canonical_write_performed": False, "effects_executed": False}

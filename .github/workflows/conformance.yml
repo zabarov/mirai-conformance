@@ -10,7 +10,7 @@ permissions:
 
 env:
   MIRAI_REFERENCE_REPOSITORY: zabarov/mirai-graph
-  MIRAI_REFERENCE_REVISION: 7b2ef0443b246eae1f8efa4484ba3f39fe24e9ad
+  MIRAI_REFERENCE_REVISION: dbf7d2d9161bedd97faca2d6d1515719ca833066
 
 jobs:
   test:
@@ -122,6 +122,10 @@ jobs:
           --contract mirai-reference/examples/mirai-outcome-completion-minimal/outcome-contract.json
           --candidates mirai-reference/examples/mirai-outcome-completion-minimal/candidate-set.json
           --evidence mirai-reference/examples/mirai-outcome-completion-minimal/evidence-set.json
+          --admission-policy-digest sha256:17ad92e63c962393c0329c658937d16eccaea13036412a3d1d0a5b6b8f29d738
+          --admitted-receipt sha256:85084388d617eb2a823e68e510d05e4235551fa1cc5a8cb1fbdd34111431cfe6
+          --admitted-receipt sha256:cded0565be682398bc3c871f5666923aab04f63ace09673751c0cf243fba2917
+          --admitted-receipt sha256:8d337e782f79c861a07aedbe056a423183b7a37adf0b712fa8763ec61db90065
           --output outcome-assessment.json
 
       - name: Check nested Outcome Completion aggregation independently
@@ -132,6 +136,10 @@ jobs:
           --contract mirai-reference/examples/mirai-outcome-completion-minimal/outcome-contract.json
           --child-bundle mirai-reference/examples/mirai-outcome-completion-minimal/child-bundle.json
           --child-bundle mirai-reference/examples/mirai-outcome-completion-minimal/incomplete-child-bundle.json
+          --admission-policy-digest sha256:17ad92e63c962393c0329c658937d16eccaea13036412a3d1d0a5b6b8f29d738
+          --admitted-receipt sha256:a49bd918a28c605aa838bacd524caccd88956ad35e3963bab5ab38a0da875114
+          --admitted-receipt sha256:14980ef3768f52046a5084c8d58cef769d5063a9371e72dc46ff03fb0322ca92
+          --admitted-receipt sha256:92ec4232eddf452ecba287f1a14dff2e9629c08d7bf4e2a1f874e829506ebd1a
           --output outcome-aggregate-assessment.json
 
       - name: Upload conformance result

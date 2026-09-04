@@ -119,14 +119,21 @@ mirai-conformance outcome assessment assessment.json \
   --schema outcome-assessment.schema.json \
   --contract outcome-contract.json \
   --candidates candidate-set.json \
-  --evidence evidence-set.json
+  --evidence evidence-set.json \
+  --admission-policy-digest <trusted-policy-digest> \
+  --admitted-receipt <host-admitted-receipt-digest>
 
 mirai-conformance outcome aggregate-assessment aggregate-assessment.json \
   --schema outcome-assessment.schema.json \
   --contract parent-outcome-contract.json \
   --child-bundle child-a-bundle.json \
-  --child-bundle child-b-bundle.json
+  --child-bundle child-b-bundle.json \
+  --admission-policy-digest <trusted-policy-digest> \
+  --admitted-receipt <host-admitted-receipt-digest>
 ```
+
+Receipt digests must come from the host trust boundary. The checker never
+derives admission from the evidence document itself.
 
 ## Boundary
 
