@@ -11,7 +11,7 @@ mirai-conformance retrieval answer path/to/answer.json \
 ```
 
 Status: independent checker alpha (`0.5.0a1`), pinned to Mirai 2.4 candidate
-`0115553350481611ca8c8cb1f67689b63d400dae`.
+`3a4a64c1da8cfb12dc28091d05f8a912a9947e9e`.
 
 [![Conformance](https://github.com/zabarov/mirai-conformance/actions/workflows/conformance.yml/badge.svg)](https://github.com/zabarov/mirai-conformance/actions/workflows/conformance.yml)
 
