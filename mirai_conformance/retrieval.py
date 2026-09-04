@@ -27,8 +27,10 @@ def validate_descriptor(document: dict[str, Any]) -> list[str]:
         errors.append("retrieval_descriptor:canonical_write_must_be_false")
     if _digest(document, omit={"built_at"}) != document.get("digest"):
         errors.append("retrieval_descriptor:digest_mismatch")
-    if document.get("semantic_status") == "ready" and (not document.get("semantic_model") or not document.get("dimensions")):
-        errors.append("retrieval_descriptor:semantic_binding_missing")
+    if document.get("semantic_status") == "ready":
+        required = ("semantic_model", "semantic_revision", "semantic_files_digest", "dimensions")
+        if any(not document.get(field) for field in required):
+            errors.append("retrieval_descriptor:semantic_binding_missing")
     return errors
 
 

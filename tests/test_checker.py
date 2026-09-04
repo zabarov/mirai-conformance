@@ -52,6 +52,24 @@ class CheckerTests(unittest.TestCase):
         result = check_retrieval("answer", tampered, load_json(MIRAI / "schemas/retrieval-answer.schema.json"))
         self.assertEqual(result["status"], "failed")
 
+    def test_retrieval_semantic_binding_is_complete(self) -> None:
+        descriptor = load_json(MIRAI / "examples/mirai-retrieval-minimal/results/index-descriptor.json")
+        semantic = copy.deepcopy(descriptor)
+        semantic.update({
+            "semantic_status": "ready",
+            "semantic_model": "model.demo",
+            "semantic_revision": None,
+            "semantic_files_digest": None,
+            "dimensions": 384,
+        })
+        semantic["digest"] = digest_value({key: value for key, value in semantic.items() if key not in {"digest", "built_at"}})
+        result = check_retrieval(
+            "index-descriptor", semantic,
+            load_json(MIRAI / "schemas/retrieval-index-descriptor.schema.json"),
+        )
+        self.assertEqual(result["status"], "failed")
+        self.assertIn("retrieval_descriptor:semantic_binding_missing", result["errors"])
+
     def test_autonomic_fabric_artifacts_pass_independently(self) -> None:
         cases = [
             ("source-snapshot", "source-snapshot.json", "source-snapshot.schema.json"),
