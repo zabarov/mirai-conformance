@@ -10,7 +10,7 @@ permissions:
 
 env:
   MIRAI_REFERENCE_REPOSITORY: zabarov/mirai-graph
-  MIRAI_REFERENCE_REVISION: e28ce76c02709ce741fe36d132c138ad6579c509
+  MIRAI_REFERENCE_REVISION: 8bc65458c478955f7fd8472fed0eedb01bf9df6c
 
 jobs:
   test:
@@ -123,6 +123,16 @@ jobs:
           --candidates mirai-reference/examples/mirai-outcome-completion-minimal/candidate-set.json
           --evidence mirai-reference/examples/mirai-outcome-completion-minimal/evidence-set.json
           --output outcome-assessment.json
+
+      - name: Check nested Outcome Completion aggregation independently
+        run: >-
+          mirai-conformance outcome aggregate-assessment
+          mirai-reference/examples/mirai-outcome-completion-minimal/aggregate-assessment.json
+          --schema mirai-reference/schemas/outcome-assessment.schema.json
+          --contract mirai-reference/examples/mirai-outcome-completion-minimal/outcome-contract.json
+          --child-assessment mirai-reference/examples/mirai-outcome-completion-minimal/child-assessment.json
+          --child-assessment mirai-reference/examples/mirai-outcome-completion-minimal/incomplete-child-assessment.json
+          --output outcome-aggregate-assessment.json
 
       - name: Upload conformance result
         if: always()

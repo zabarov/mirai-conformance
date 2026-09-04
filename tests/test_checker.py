@@ -57,6 +57,30 @@ class CheckerTests(unittest.TestCase):
         self.assertEqual(result["status"], "failed")
         self.assertTrue(any("forged_evidence" in error for error in result["errors"]), result)
 
+    def test_outcome_aggregate_checks_parent_binding_and_incomplete_children(self) -> None:
+        root = MIRAI / "examples/mirai-outcome-completion-minimal"
+        parent = load_json(root / "outcome-contract.json")
+        child = load_json(root / "child-assessment.json")
+        incomplete = load_json(root / "incomplete-child-assessment.json")
+        aggregate = load_json(root / "aggregate-assessment.json")
+        schema = load_json(MIRAI / "schemas/outcome-assessment.schema.json")
+        result = check_outcome("aggregate-assessment", aggregate, schema, contract=parent, child_assessments=[child, incomplete])
+        self.assertEqual(result["status"], "passed", result)
+
+        hidden = copy.deepcopy(aggregate)
+        hidden["status"] = "satisfied"
+        hidden["digest"] = digest_value({key: value for key, value in hidden.items() if key != "digest"})
+        result = check_outcome("aggregate-assessment", hidden, schema, contract=parent, child_assessments=[child, incomplete])
+        self.assertEqual(result["status"], "failed")
+        self.assertIn("outcome_aggregate:status_mismatch", result["errors"])
+
+        unbound = copy.deepcopy(child)
+        unbound["parent_contract_digest"] = "sha256:" + "a" * 64
+        unbound["digest"] = digest_value({key: value for key, value in unbound.items() if key != "digest"})
+        result = check_outcome("aggregate-assessment", aggregate, schema, contract=parent, child_assessments=[unbound, incomplete])
+        self.assertEqual(result["status"], "failed")
+        self.assertTrue(any("child_parent_binding_mismatch" in error for error in result["errors"]), result)
+
     def test_retrieval_artifacts_pass_independently(self) -> None:
         results = MIRAI / "examples/mirai-retrieval-minimal/results"
         cases = [

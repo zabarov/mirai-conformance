@@ -120,6 +120,12 @@ mirai-conformance outcome assessment assessment.json \
   --contract outcome-contract.json \
   --candidates candidate-set.json \
   --evidence evidence-set.json
+
+mirai-conformance outcome aggregate-assessment aggregate-assessment.json \
+  --schema outcome-assessment.schema.json \
+  --contract parent-outcome-contract.json \
+  --child-assessment child-a.json \
+  --child-assessment child-b.json
 ```
 
 ## Boundary

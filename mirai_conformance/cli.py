@@ -70,13 +70,14 @@ def _parser() -> argparse.ArgumentParser:
     retrieval.add_argument("--envelope")
     retrieval.add_argument("--output")
     outcome = commands.add_parser("outcome", help="Validate a Mirai 2.5 Outcome Completion artifact")
-    outcome.add_argument("kind", choices=["contract", "candidate-set", "assessment", "delivery-plan", "pilot-result"])
+    outcome.add_argument("kind", choices=["contract", "candidate-set", "assessment", "aggregate-assessment", "delivery-plan", "pilot-result"])
     outcome.add_argument("artifact")
     outcome.add_argument("--schema", required=True)
     outcome.add_argument("--contract")
     outcome.add_argument("--candidates")
     outcome.add_argument("--evidence")
     outcome.add_argument("--assessment")
+    outcome.add_argument("--child-assessment", action="append", default=[])
     outcome.add_argument("--output")
     return parser
 
@@ -122,6 +123,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             candidates=load_json(args.candidates) if args.candidates else None,
             evidence=load_json(args.evidence) if args.evidence else None,
             assessment=load_json(args.assessment) if args.assessment else None,
+            child_assessments=[load_json(item) for item in args.child_assessment],
         )
     if args.output:
         write_json(Path(args.output), result)

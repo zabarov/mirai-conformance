@@ -95,6 +95,8 @@ def validate_assessment(document: dict[str, Any], contract: dict[str, Any] | Non
         return errors + ["outcome_assessment:bindings_required"]
     if document.get("contract_digest") != contract.get("digest") or document.get("candidate_set_digest") != candidates.get("digest") or document.get("evidence_set_digest") != evidence.get("digest"):
         errors.append("outcome_assessment:binding_mismatch")
+    if document.get("parent_contract_digest") != contract.get("parent_contract_digest"):
+        errors.append("outcome_assessment:parent_binding_mismatch")
     if document.get("status") != _expected_status(contract, candidates, document):
         errors.append("outcome_assessment:status_mismatch")
     items = {item.get("id"): item for item in evidence.get("items", [])}
@@ -115,6 +117,46 @@ def validate_assessment(document: dict[str, Any], contract: dict[str, Any] | Non
     confirmed = {slot.get("slot_id") for slot in document.get("slots", []) if slot.get("state") == "confirmed"}
     if document.get("status") == "satisfied" and not critical.issubset(confirmed):
         errors.append("outcome_assessment:satisfied_without_critical_slots")
+    return errors
+
+
+def validate_aggregate(document: dict[str, Any], contract: dict[str, Any] | None, children: list[dict[str, Any]] | None) -> list[str]:
+    errors = _boundaries(document, "outcome_aggregate")
+    if contract is None or not children:
+        return errors + ["outcome_aggregate:bindings_required"]
+    if document.get("contract_digest") != contract.get("digest"):
+        errors.append("outcome_aggregate:contract_binding_mismatch")
+    if document.get("parent_contract_digest") != contract.get("parent_contract_digest"):
+        errors.append("outcome_aggregate:parent_binding_mismatch")
+    for child in children:
+        if _digest(child) != child.get("digest"):
+            errors.append(f"outcome_aggregate:child_digest_mismatch:{child.get('id')}")
+        if child.get("contract_digest") != contract.get("digest") and child.get("parent_contract_digest") != contract.get("digest"):
+            errors.append(f"outcome_aggregate:child_parent_binding_mismatch:{child.get('id')}")
+    expected_candidates = digest_value([child.get("candidate_set_digest") for child in children])
+    expected_evidence = digest_value([child.get("evidence_set_digest") for child in children])
+    if document.get("candidate_set_digest") != expected_candidates or document.get("evidence_set_digest") != expected_evidence:
+        errors.append("outcome_aggregate:child_set_binding_mismatch")
+
+    context = {"context": {"purpose": contract.get("scope", {}).get("purpose"), "domains": contract.get("scope", {}).get("domains", []), "availability": "available", "handoff_required": False}}
+    expected_status = _expected_status(contract, context, document)
+    child_statuses = {child.get("status") for child in children}
+    for status in ["out_of_scope", "failed", "temporarily_unavailable", "handoff_required", "blocked_by_conflict", "needs_input", "insufficient_evidence"]:
+        if status in child_statuses:
+            expected_status = status
+            break
+    else:
+        if "partially_satisfied" in child_statuses and expected_status == "satisfied":
+            expected_status = "partially_satisfied" if contract.get("completion_policy", {}).get("allow_partial") else "insufficient_evidence"
+    if document.get("status") != expected_status:
+        errors.append("outcome_aggregate:status_mismatch")
+
+    for slot in document.get("slots", []):
+        if slot.get("state") != "confirmed":
+            continue
+        matches = [child_slot for child in children for child_slot in child.get("slots", []) if child_slot.get("slot_id") == slot.get("slot_id") and child_slot.get("state") == "confirmed" and child_slot.get("value") == slot.get("value")]
+        if not matches:
+            errors.append(f"outcome_aggregate:confirmed_slot_not_bound_to_child:{slot.get('slot_id')}")
     return errors
 
 
@@ -141,12 +183,13 @@ def validate_pilot(document: dict[str, Any]) -> list[str]:
     return errors
 
 
-def check_outcome(kind: str, document: dict[str, Any], schema: dict[str, Any], *, contract: dict[str, Any] | None = None, candidates: dict[str, Any] | None = None, evidence: dict[str, Any] | None = None, assessment: dict[str, Any] | None = None) -> dict[str, Any]:
+def check_outcome(kind: str, document: dict[str, Any], schema: dict[str, Any], *, contract: dict[str, Any] | None = None, candidates: dict[str, Any] | None = None, evidence: dict[str, Any] | None = None, assessment: dict[str, Any] | None = None, child_assessments: list[dict[str, Any]] | None = None) -> dict[str, Any]:
     errors = _schema_errors(document, schema)
     if not errors:
         if kind == "contract": errors.extend(validate_contract(document))
         elif kind == "candidate-set": errors.extend(validate_candidates(document, contract))
         elif kind == "assessment": errors.extend(validate_assessment(document, contract, candidates, evidence))
+        elif kind == "aggregate-assessment": errors.extend(validate_aggregate(document, contract, child_assessments))
         elif kind == "delivery-plan": errors.extend(validate_delivery(document, assessment))
         elif kind == "pilot-result": errors.extend(validate_pilot(document))
         else: errors.append(f"outcome:unknown_kind:{kind}")
