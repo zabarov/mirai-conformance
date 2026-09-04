@@ -10,7 +10,7 @@ permissions:
 
 env:
   MIRAI_REFERENCE_REPOSITORY: zabarov/mirai-graph
-  MIRAI_REFERENCE_REVISION: 9ef7e9a659af1098a570167b8f8fa7ba598230d5
+  MIRAI_REFERENCE_REVISION: 05991d23ff6d5481fc9061762bd64c82bbf9d70c
 
 jobs:
   test:
@@ -92,6 +92,28 @@ jobs:
           --schema mirai-reference/schemas/autonomic-cycle.schema.json
           --output autonomic-autonomic-cycle.json
 
+      - name: Check retrieval evidence independently
+        run: >-
+          mirai-conformance retrieval evidence-bundle
+          mirai-reference/examples/mirai-retrieval-minimal/results/evidence-bundle.json
+          --schema mirai-reference/schemas/retrieval-evidence-bundle.schema.json
+          --output retrieval-evidence.json
+
+      - name: Check retrieval answer independently
+        run: >-
+          mirai-conformance retrieval answer
+          mirai-reference/examples/mirai-retrieval-minimal/results/answer.json
+          --schema mirai-reference/schemas/retrieval-answer.schema.json
+          --evidence mirai-reference/examples/mirai-retrieval-minimal/results/evidence-bundle.json
+          --output retrieval-answer.json
+
+      - name: Check retrieval evaluation independently
+        run: >-
+          mirai-conformance retrieval evaluation
+          mirai-reference/examples/mirai-retrieval-minimal/results/evaluation.json
+          --schema mirai-reference/schemas/retrieval-evaluation.schema.json
+          --output retrieval-evaluation.json
+
       - name: Upload conformance result
         if: always()
         uses: actions/upload-artifact@v4
@@ -100,6 +122,7 @@ jobs:
           path: |
             conformance-result.json
             autonomic-*.json
+            retrieval-*.json
 
   package:
     runs-on: ubuntu-latest

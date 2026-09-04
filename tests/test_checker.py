@@ -13,6 +13,7 @@ from mirai_conformance.runtime import validate_pure_episode, validate_sanitized_
 from mirai_conformance.project import check_project
 from mirai_conformance.autonomic import check_autonomic
 from mirai_conformance.validator import load_json, validate_program
+from mirai_conformance.retrieval import check_retrieval
 
 
 MIRAI = Path(os.environ.get("MIRAI_REPO", Path(__file__).resolve().parents[2] / "mirai-graph")).resolve()
@@ -26,6 +27,31 @@ AUTONOMIC = MIRAI / "examples/mirai-autonomic-fabric-minimal/results"
 
 
 class CheckerTests(unittest.TestCase):
+    def test_retrieval_artifacts_pass_independently(self) -> None:
+        results = MIRAI / "examples/mirai-retrieval-minimal/results"
+        cases = [
+            ("index-descriptor", "index-descriptor.json", "retrieval-index-descriptor.schema.json"),
+            ("plan", "plan.json", "retrieval-plan.schema.json"),
+            ("evidence-bundle", "evidence-bundle.json", "retrieval-evidence-bundle.schema.json"),
+            ("evaluation", "evaluation.json", "retrieval-evaluation.schema.json"),
+        ]
+        for kind, artifact, schema in cases:
+            result = check_retrieval(kind, load_json(results / artifact), load_json(MIRAI / "schemas" / schema))
+            self.assertEqual(result["status"], "passed", result)
+        answer = check_retrieval(
+            "answer", load_json(results / "answer.json"), load_json(MIRAI / "schemas/retrieval-answer.schema.json"),
+            evidence=load_json(results / "evidence-bundle.json"),
+        )
+        self.assertEqual(answer["status"], "passed", answer)
+
+    def test_retrieval_claim_without_evidence_is_rejected(self) -> None:
+        answer = load_json(MIRAI / "examples/mirai-retrieval-minimal/results/answer.json")
+        tampered = copy.deepcopy(answer)
+        tampered["claims"][0]["evidence_refs"] = []
+        tampered["digest"] = digest_value({key: value for key, value in tampered.items() if key != "digest"})
+        result = check_retrieval("answer", tampered, load_json(MIRAI / "schemas/retrieval-answer.schema.json"))
+        self.assertEqual(result["status"], "failed")
+
     def test_autonomic_fabric_artifacts_pass_independently(self) -> None:
         cases = [
             ("source-snapshot", "source-snapshot.json", "source-snapshot.schema.json"),

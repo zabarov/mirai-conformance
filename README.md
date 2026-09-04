@@ -1,6 +1,16 @@
 # Mirai Conformance
 
-Status: independent checker alpha (`0.4.0a2`); Mirai 2.2 candidate CI pending
+The `0.5.0a1` development line adds independent semantic validation for Mirai
+2.4 retrieval index descriptors, plans, evidence bundles, evidence-bound
+answers, federated query envelopes/results and evaluation artifacts.
+
+```bash
+mirai-conformance retrieval answer path/to/answer.json \
+  --schema path/to/retrieval-answer.schema.json \
+  --evidence path/to/evidence-bundle.json
+```
+
+Status: independent checker alpha (`0.5.0a1`); Mirai 2.4 candidate CI pending
 
 [![Conformance](https://github.com/zabarov/mirai-conformance/actions/workflows/conformance.yml/badge.svg)](https://github.com/zabarov/mirai-conformance/actions/workflows/conformance.yml)
 
@@ -28,6 +38,8 @@ public runtime evidence:
 - Mirai 2.2 source snapshots, normalized units, knowledge proposals, process
   observations/candidates, autonomy envelopes, evolution decisions, promotion
   receipts and bounded autonomic cycles.
+- Mirai 2.4 retrieval descriptors, plans, evidence-bound answers, federated
+  query envelopes/results and bounded evaluation reports.
 
 ## Install
 

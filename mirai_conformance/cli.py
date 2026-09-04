@@ -12,12 +12,13 @@ from .graph_native import check_graph_native
 from .runtime import check_episode, check_evidence
 from .project import check_project
 from .autonomic import check_autonomic
+from .retrieval import check_retrieval
 from .validator import load_json
 
 
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="mirai-conformance")
-    parser.add_argument("--version", action="version", version="mirai-conformance 0.4.0a2")
+    parser.add_argument("--version", action="version", version="mirai-conformance 0.5.0a1")
     commands = parser.add_subparsers(dest="command", required=True)
 
     corpus = commands.add_parser("corpus", help="Run a public Mirai conformance corpus")
@@ -60,6 +61,13 @@ def _parser() -> argparse.ArgumentParser:
     autonomic.add_argument("--proposal")
     autonomic.add_argument("--envelope")
     autonomic.add_argument("--output")
+    retrieval = commands.add_parser("retrieval", help="Validate a Mirai 2.4 Retrieval Fabric artifact")
+    retrieval.add_argument("kind", choices=["index-descriptor", "plan", "evidence-bundle", "answer", "federated-envelope", "federated-result", "evaluation"])
+    retrieval.add_argument("artifact")
+    retrieval.add_argument("--schema", required=True)
+    retrieval.add_argument("--evidence")
+    retrieval.add_argument("--envelope")
+    retrieval.add_argument("--output")
     return parser
 
 
@@ -83,12 +91,18 @@ def main(argv: Sequence[str] | None = None) -> int:
         )
     elif args.command == "project":
         result = check_project(args.root, args.schemas, args.agent_brief)
-    else:
+    elif args.command == "autonomic":
         result = check_autonomic(
             args.kind,
             load_json(args.artifact),
             load_json(args.schema),
             proposal=load_json(args.proposal) if args.proposal else None,
+            envelope=load_json(args.envelope) if args.envelope else None,
+        )
+    else:
+        result = check_retrieval(
+            args.kind, load_json(args.artifact), load_json(args.schema),
+            evidence=load_json(args.evidence) if args.evidence else None,
             envelope=load_json(args.envelope) if args.envelope else None,
         )
     if args.output:
