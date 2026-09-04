@@ -79,7 +79,7 @@ class CheckerTests(unittest.TestCase):
             "contract_version": "1.0.0", "query_digest": "sha256:" + "a" * 64,
             "index_digest": "sha256:" + "b" * 64, "graph_digest": None,
             "policy_digest": "sha256:" + "c" * 64,
-            "hits": [{"document_id": "forbidden", "source_ref": "source.forbidden", "scope": "scope.forbidden", "evidence_refs": ["evidence.demo"], "instructions_authorized": False}],
+            "hits": [{"document_id": "forbidden", "source_ref": "source.forbidden", "scope": "scope.forbidden", "evidence_refs": ["evidence.demo"], "instructions_authorized": False, "canonical_write_allowed": False}],
             "source_refs": ["source.forbidden"], "conflicts": [], "limitations": [], "partial": False,
             "instructions_authorized": False, "canonical_write_allowed": False,
         }
@@ -94,6 +94,52 @@ class CheckerTests(unittest.TestCase):
         self.assertIn("federated_result:source_scope_violation", errors)
         self.assertIn("federated_result:hit_scope_violation:forbidden", errors)
         self.assertIn("federated_result:budget_exceeded", errors)
+
+    def test_federated_retrieval_rejects_document_scope_and_per_hit_authority(self) -> None:
+        envelope = {
+            "id": "query.demo", "requester": {
+                "source_refs": ["source.allowed"], "scopes": ["scope.allowed"],
+                "document_ids": ["document.allowed"],
+            }, "token_budget": 10, "cost_budget": 1,
+        }
+        evidence = {
+            "contract_version": "1.0.0", "query_digest": "sha256:" + "a" * 64,
+            "index_digest": "sha256:" + "b" * 64, "graph_digest": None,
+            "policy_digest": "sha256:" + "c" * 64,
+            "hits": [{"document_id": "document.forbidden", "source_ref": "source.allowed", "scope": "scope.allowed", "evidence_refs": ["evidence.demo"], "instructions_authorized": False, "canonical_write_allowed": True}],
+            "source_refs": ["source.allowed"], "conflicts": [], "limitations": [], "partial": False,
+            "instructions_authorized": False, "canonical_write_allowed": False,
+        }
+        evidence["digest"] = digest_value(evidence)
+        result = {
+            "query_id": "query.demo", "query_digest": evidence["query_digest"], "policy_digest": evidence["policy_digest"],
+            "evidence_bundle": evidence, "usage": {"tokens_used": 1, "cost_used": 0, "duration_ms": 1},
+            "instructions_authorized": False, "canonical_write_allowed": False,
+        }
+        result["digest"] = digest_value(result)
+        errors = validate_federated_result(result, envelope)
+        self.assertIn("retrieval_evidence:canonical_write_hit:document.forbidden", errors)
+        self.assertIn("federated_result:document_scope_violation:document.forbidden", errors)
+
+    def test_blocked_federated_result_cannot_supply_hits(self) -> None:
+        evidence = {
+            "contract_version": "1.0.0", "query_digest": "sha256:" + "a" * 64,
+            "index_digest": "sha256:" + "b" * 64, "graph_digest": None,
+            "policy_digest": "sha256:" + "c" * 64,
+            "hits": [{"document_id": "document.demo", "source_ref": "source.allowed", "scope": "scope.allowed", "evidence_refs": ["evidence.demo"], "instructions_authorized": False, "canonical_write_allowed": False}],
+            "source_refs": ["source.allowed"], "conflicts": [], "limitations": [], "partial": True,
+            "instructions_authorized": False, "canonical_write_allowed": False,
+        }
+        evidence["digest"] = digest_value(evidence)
+        result = {
+            "query_id": "query.demo", "query_digest": evidence["query_digest"], "policy_digest": evidence["policy_digest"],
+            "evidence_bundle": evidence, "status": "blocked", "blockers": ["policy_denied"],
+            "usage": {"tokens_used": 0, "cost_used": 0, "duration_ms": 1},
+            "instructions_authorized": False, "canonical_write_allowed": False,
+        }
+        result["digest"] = digest_value(result)
+        errors = validate_federated_result(result)
+        self.assertIn("federated_result:blocked_result_must_not_supply_hits", errors)
 
     def test_autonomic_fabric_artifacts_pass_independently(self) -> None:
         cases = [

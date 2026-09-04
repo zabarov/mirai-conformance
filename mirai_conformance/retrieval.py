@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 from typing import Any
 
 from jsonschema import Draft202012Validator, FormatChecker
@@ -60,6 +61,8 @@ def validate_evidence(document: dict[str, Any]) -> list[str]:
             errors.append(f"retrieval_evidence:unbound_hit:{hit.get('document_id')}")
         if hit.get("instructions_authorized") is not False:
             errors.append(f"retrieval_evidence:authorized_instruction_hit:{hit.get('document_id')}")
+        if hit.get("canonical_write_allowed") is not False:
+            errors.append(f"retrieval_evidence:canonical_write_hit:{hit.get('document_id')}")
     if document.get("conflicts") and not document.get("partial"):
         errors.append("retrieval_evidence:conflict_not_marked_partial")
     return errors
@@ -97,7 +100,11 @@ def validate_federated_envelope(document: dict[str, Any]) -> list[str]:
         errors.append("federated_query:route_cycle")
     if len(visited) > document.get("max_hops", 0):
         errors.append("federated_query:hop_budget_exceeded")
-    if document.get("max_fan_out", 0) < 1 or document.get("max_hops", 0) < 1:
+    integer_budgets = (document.get("max_fan_out"), document.get("max_hops"), document.get("token_budget"))
+    numeric_budgets = (*integer_budgets, document.get("cost_budget"))
+    if any(isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value) for value in numeric_budgets):
+        errors.append("federated_query:invalid_budget")
+    elif any(not isinstance(value, int) or value < 1 for value in integer_budgets) or document.get("cost_budget", 0) <= 0:
         errors.append("federated_query:invalid_budget")
     return errors
 
@@ -114,6 +121,11 @@ def validate_federated_result(document: dict[str, Any], envelope: dict[str, Any]
     if evidence.get("canonical_write_allowed") is not False:
         errors.append("federated_result:evidence_authority_boundary_broken")
     errors.extend(validate_evidence(evidence))
+    status = document.get("status")
+    if status == "blocked" and (evidence.get("hits") or not document.get("blockers")):
+        errors.append("federated_result:blocked_result_must_not_supply_hits")
+    if status == "partial" and evidence.get("partial") is not True:
+        errors.append("federated_result:partial_status_mismatch")
     if document.get("query_digest") != evidence.get("query_digest") or document.get("policy_digest") != evidence.get("policy_digest"):
         errors.append("federated_result:evidence_binding_mismatch")
     if envelope is not None:
@@ -122,13 +134,19 @@ def validate_federated_result(document: dict[str, Any], envelope: dict[str, Any]
         requester = envelope.get("requester", {})
         allowed_sources = set(requester.get("source_refs", []))
         allowed_scopes = set(requester.get("scopes", []))
+        allowed_documents = set(requester.get("document_ids", [])) if requester.get("document_ids") else None
         if any(ref not in allowed_sources for ref in evidence.get("source_refs", [])):
             errors.append("federated_result:source_scope_violation")
         for hit in evidence.get("hits", []):
-            if hit.get("source_ref") not in allowed_sources or hit.get("scope") not in allowed_scopes:
+            if hit.get("source_ref") not in allowed_sources or hit.get("scope") not in allowed_scopes or hit.get("canonical_write_allowed") is not False:
                 errors.append(f"federated_result:hit_scope_violation:{hit.get('document_id')}")
+            if allowed_documents is not None and hit.get("document_id") not in allowed_documents:
+                errors.append(f"federated_result:document_scope_violation:{hit.get('document_id')}")
         usage = document.get("usage", {})
-        if usage.get("tokens_used", -1) > envelope.get("token_budget", 0) or usage.get("cost_used", -1) > envelope.get("cost_budget", 0):
+        usage_values = (usage.get("tokens_used"), usage.get("cost_used"), usage.get("duration_ms"))
+        if any(isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value) or value < 0 for value in usage_values):
+            errors.append("federated_result:invalid_usage")
+        elif usage.get("tokens_used", -1) > envelope.get("token_budget", 0) or usage.get("cost_used", -1) > envelope.get("cost_budget", 0):
             errors.append("federated_result:budget_exceeded")
     return errors
 

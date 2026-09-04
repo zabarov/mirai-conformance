@@ -10,7 +10,8 @@ mirai-conformance retrieval answer path/to/answer.json \
   --evidence path/to/evidence-bundle.json
 ```
 
-Status: independent checker alpha (`0.5.0a1`); Mirai 2.4 candidate CI pending
+Status: independent checker alpha (`0.5.0a1`), pinned to Mirai 2.4 candidate
+`126ad1a1cc107dc4efc548809cda185c108d49cf`.
 
 [![Conformance](https://github.com/zabarov/mirai-conformance/actions/workflows/conformance.yml/badge.svg)](https://github.com/zabarov/mirai-conformance/actions/workflows/conformance.yml)
 
