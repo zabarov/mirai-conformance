@@ -1,8 +1,7 @@
 # Mirai Conformance
 
-The `0.5.0a1` development line adds independent semantic validation for Mirai
-2.4 retrieval index descriptors, plans, evidence bundles, evidence-bound
-answers, federated query envelopes/results and evaluation artifacts.
+The `0.6.0a1` development line adds independent semantic validation for Mirai
+2.5 Outcome Completion while retaining Mirai 2.4 retrieval coverage.
 
 ```bash
 mirai-conformance retrieval answer path/to/answer.json \
@@ -10,8 +9,8 @@ mirai-conformance retrieval answer path/to/answer.json \
   --evidence path/to/evidence-bundle.json
 ```
 
-Status: independent checker alpha (`0.5.0a1`), pinned to Mirai 2.4 candidate
-`3a4a64c1da8cfb12dc28091d05f8a912a9947e9e`.
+Status: independent checker alpha (`0.6.0a1`); Mirai 2.5 revision binding is
+pending the local candidate commit.
 
 [![Conformance](https://github.com/zabarov/mirai-conformance/actions/workflows/conformance.yml/badge.svg)](https://github.com/zabarov/mirai-conformance/actions/workflows/conformance.yml)
 
@@ -41,6 +40,8 @@ public runtime evidence:
   receipts and bounded autonomic cycles.
 - Mirai 2.4 retrieval descriptors, plans, evidence-bound answers, federated
   query envelopes/results and bounded evaluation reports.
+- Mirai 2.5 Outcome Completion contracts, deterministic status classification,
+  evidence bindings, delivery plans and controlled pilot results.
 
 ## Install
 
@@ -111,12 +112,22 @@ mirai-conformance autonomic evolution-decision \
   --envelope autonomy-envelope.json
 ```
 
+To validate Outcome Completion independently:
+
+```bash
+mirai-conformance outcome assessment assessment.json \
+  --schema outcome-assessment.schema.json \
+  --contract outcome-contract.json \
+  --candidates candidate-set.json \
+  --evidence evidence-set.json
+```
+
 ## Boundary
 
-The Mirai 2.2 candidate is pinned in CI to
-`eeb048121da54123566bc73f9024f37f8ddd688e`. Local tests do not establish public
-cross-platform verification; record the public CI run before treating the
-candidate as a stable release gate.
+The Mirai 2.5 candidate will be pinned only after the Mirai and checker commits
+are fixed. Local tests do not establish public cross-platform verification;
+record the public CI run before treating the candidate as a stable release
+gate.
 
 Passing this checker proves agreement with the checked public corpus or
 internal consistency of the supplied sanitized evidence. It does not prove

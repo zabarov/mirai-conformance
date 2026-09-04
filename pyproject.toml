@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "mirai-conformance"
-version = "0.5.0a1"
-description = "Independent Python conformance checker for Mirai Program, runtime evidence, graph-native and retrieval contracts."
+version = "0.6.0a1"
+description = "Independent Python conformance checker for Mirai Program, runtime evidence, graph-native, retrieval and outcome contracts."
 readme = "README.md"
 requires-python = ">=3.12"
 license = "MIT"

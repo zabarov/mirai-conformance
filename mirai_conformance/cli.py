@@ -13,12 +13,13 @@ from .runtime import check_episode, check_evidence
 from .project import check_project
 from .autonomic import check_autonomic
 from .retrieval import check_retrieval
+from .outcome import check_outcome
 from .validator import load_json
 
 
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="mirai-conformance")
-    parser.add_argument("--version", action="version", version="mirai-conformance 0.5.0a1")
+    parser.add_argument("--version", action="version", version="mirai-conformance 0.6.0a1")
     commands = parser.add_subparsers(dest="command", required=True)
 
     corpus = commands.add_parser("corpus", help="Run a public Mirai conformance corpus")
@@ -68,6 +69,15 @@ def _parser() -> argparse.ArgumentParser:
     retrieval.add_argument("--evidence")
     retrieval.add_argument("--envelope")
     retrieval.add_argument("--output")
+    outcome = commands.add_parser("outcome", help="Validate a Mirai 2.5 Outcome Completion artifact")
+    outcome.add_argument("kind", choices=["contract", "candidate-set", "assessment", "delivery-plan", "pilot-result"])
+    outcome.add_argument("artifact")
+    outcome.add_argument("--schema", required=True)
+    outcome.add_argument("--contract")
+    outcome.add_argument("--candidates")
+    outcome.add_argument("--evidence")
+    outcome.add_argument("--assessment")
+    outcome.add_argument("--output")
     return parser
 
 
@@ -99,11 +109,19 @@ def main(argv: Sequence[str] | None = None) -> int:
             proposal=load_json(args.proposal) if args.proposal else None,
             envelope=load_json(args.envelope) if args.envelope else None,
         )
-    else:
+    elif args.command == "retrieval":
         result = check_retrieval(
             args.kind, load_json(args.artifact), load_json(args.schema),
             evidence=load_json(args.evidence) if args.evidence else None,
             envelope=load_json(args.envelope) if args.envelope else None,
+        )
+    else:
+        result = check_outcome(
+            args.kind, load_json(args.artifact), load_json(args.schema),
+            contract=load_json(args.contract) if args.contract else None,
+            candidates=load_json(args.candidates) if args.candidates else None,
+            evidence=load_json(args.evidence) if args.evidence else None,
+            assessment=load_json(args.assessment) if args.assessment else None,
         )
     if args.output:
         write_json(Path(args.output), result)

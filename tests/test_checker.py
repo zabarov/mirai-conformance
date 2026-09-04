@@ -14,6 +14,7 @@ from mirai_conformance.project import check_project
 from mirai_conformance.autonomic import check_autonomic
 from mirai_conformance.validator import load_json, validate_program
 from mirai_conformance.retrieval import check_retrieval, validate_federated_result
+from mirai_conformance.outcome import check_outcome
 
 
 MIRAI = Path(os.environ.get("MIRAI_REPO", Path(__file__).resolve().parents[2] / "mirai-graph")).resolve()
@@ -27,6 +28,35 @@ AUTONOMIC = MIRAI / "examples/mirai-autonomic-fabric-minimal/results"
 
 
 class CheckerTests(unittest.TestCase):
+    def test_outcome_completion_artifacts_pass_independently(self) -> None:
+        root = MIRAI / "examples/mirai-outcome-completion-minimal"
+        contract = load_json(root / "outcome-contract.json")
+        candidates = load_json(root / "candidate-set.json")
+        evidence = load_json(root / "evidence-set.json")
+        assessment = load_json(root / "assessment.json")
+        cases = [
+            ("contract", "outcome-contract.json", "outcome-completion-contract.schema.json", {}),
+            ("candidate-set", "candidate-set.json", "outcome-candidate-set.schema.json", {"contract": contract}),
+            ("assessment", "assessment.json", "outcome-assessment.schema.json", {"contract": contract, "candidates": candidates, "evidence": evidence}),
+            ("delivery-plan", "delivery-plan.json", "outcome-delivery-plan.schema.json", {"assessment": assessment}),
+        ]
+        for kind, artifact, schema, bindings in cases:
+            result = check_outcome(kind, load_json(root / artifact), load_json(MIRAI / "schemas" / schema), **bindings)
+            self.assertEqual(result["status"], "passed", result)
+
+    def test_outcome_checker_rejects_false_completion_and_forged_evidence(self) -> None:
+        root = MIRAI / "examples/mirai-outcome-completion-minimal"
+        contract = load_json(root / "outcome-contract.json")
+        candidates = load_json(root / "candidate-set.json")
+        evidence = load_json(root / "evidence-set.json")
+        assessment = load_json(root / "assessment.json")
+        tampered = copy.deepcopy(assessment)
+        tampered["slots"][0]["admitted_evidence_refs"] = ["evidence.forged"]
+        tampered["digest"] = digest_value({key: value for key, value in tampered.items() if key != "digest"})
+        result = check_outcome("assessment", tampered, load_json(MIRAI / "schemas/outcome-assessment.schema.json"), contract=contract, candidates=candidates, evidence=evidence)
+        self.assertEqual(result["status"], "failed")
+        self.assertTrue(any("forged_evidence" in error for error in result["errors"]), result)
+
     def test_retrieval_artifacts_pass_independently(self) -> None:
         results = MIRAI / "examples/mirai-retrieval-minimal/results"
         cases = [
