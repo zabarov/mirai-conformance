@@ -41,6 +41,8 @@ def validate_contract(document: dict[str, Any]) -> list[str]:
         errors.append("outcome_contract:effectful_ephemeral_contract")
     if document.get("completion_policy", {}).get("all_critical_required") is not True:
         errors.append("outcome_contract:critical_completion_weakened")
+    if any(slot.get("critical") is True and slot.get("evidence_required") is not True for slot in slots):
+        errors.append("outcome_contract:critical_slot_requires_evidence")
     return errors
 
 
