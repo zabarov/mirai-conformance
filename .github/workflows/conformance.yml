@@ -10,7 +10,7 @@ permissions:
 
 env:
   MIRAI_REFERENCE_REPOSITORY: zabarov/mirai-graph
-  MIRAI_REFERENCE_REVISION: 49eba15f9d248ce3b26672aab4cf6810b6719cbf
+  MIRAI_REFERENCE_REVISION: bd1ee2649f6d083590ff61aea7818f76149d9acb
 
 jobs:
   test:
@@ -123,9 +123,9 @@ jobs:
           --candidates mirai-reference/examples/mirai-outcome-completion-minimal/candidate-set.json
           --evidence mirai-reference/examples/mirai-outcome-completion-minimal/evidence-set.json
           --admission-policy-digest sha256:17ad92e63c962393c0329c658937d16eccaea13036412a3d1d0a5b6b8f29d738
-          --admitted-receipt sha256:85084388d617eb2a823e68e510d05e4235551fa1cc5a8cb1fbdd34111431cfe6
+          --admitted-receipt sha256:0275c91f056100271245d817503247bc1d8ceb27717717403030291d674c59a9
           --admitted-receipt sha256:cded0565be682398bc3c871f5666923aab04f63ace09673751c0cf243fba2917
-          --admitted-receipt sha256:8d337e782f79c861a07aedbe056a423183b7a37adf0b712fa8763ec61db90065
+          --admitted-receipt sha256:1c437176699f1b0f230b801e3325cd6a09a75ce4990fc257d47cc4a5247fb329
           --output outcome-assessment.json
 
       - name: Check nested Outcome Completion aggregation independently
@@ -137,9 +137,9 @@ jobs:
           --child-bundle mirai-reference/examples/mirai-outcome-completion-minimal/child-bundle.json
           --child-bundle mirai-reference/examples/mirai-outcome-completion-minimal/incomplete-child-bundle.json
           --admission-policy-digest sha256:17ad92e63c962393c0329c658937d16eccaea13036412a3d1d0a5b6b8f29d738
-          --admitted-receipt sha256:a49bd918a28c605aa838bacd524caccd88956ad35e3963bab5ab38a0da875114
+          --admitted-receipt sha256:8b7853d0548b04443aa66628d72028560d37d9cea11cfde2f348509f877c1832
           --admitted-receipt sha256:14980ef3768f52046a5084c8d58cef769d5063a9371e72dc46ff03fb0322ca92
-          --admitted-receipt sha256:92ec4232eddf452ecba287f1a14dff2e9629c08d7bf4e2a1f874e829506ebd1a
+          --admitted-receipt sha256:b0f270c084f1d8b80ed333d96f486d2a83b68f52cf56ff86466cb5ddeca12e24
           --output outcome-aggregate-assessment.json
 
       - name: Upload conformance result
